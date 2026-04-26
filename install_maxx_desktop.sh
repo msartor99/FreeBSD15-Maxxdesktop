@@ -1,7 +1,7 @@
 #!/bin/sh
 # ==============================================================================
-# POST-INSTALL MAXX DESKTOP SGI - FREEBSD 15 RELEASE (PURE SH / MASTER V78)
-# FIX : Sudo NOPASSWD rule for Toolchest Power Management (Reboot/Shutdown)
+# POST-INSTALL MAXX DESKTOP SGI - FREEBSD 15 RELEASE (PURE SH / MASTER V80)
+# FIX : kldload linux before linux-rl9 pkg installation
 # ==============================================================================
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -138,8 +138,23 @@ env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg bootstrap -f
 hash -r
 env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg update -f
 
-env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg install -y xorg
-env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg install -y bash sddm xfe firefox thunderbird xterm pulseaudio pavucontrol alsa-utils alsa-plugins xpdf xorg-apps nedit linux_base-rl9 linux-rl9 xprop pciutils usbutils scrot vlc ImageMagick7 feh sudo unzip libzip git htop neofetch python3 bashtop smartmontools xscreensaver xmountains xdaliclock xlockmore
+printf "\n👉 Installing Base X11 Server...\n"
+env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg install -y xorg xprop xorg-apps
+
+printf "\n👉 Installing Linuxulator (Rocky Linux 9)...\n"
+# FIX: Load linux modules into memory before pkg executes post-install scripts
+kldload linux64 2>/dev/null
+kldload linux 2>/dev/null
+env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg install -y linux_base-rl9 linux-rl9
+
+printf "\n👉 Installing Display Manager and Audio...\n"
+env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg install -y sddm pulseaudio pavucontrol alsa-utils alsa-plugins
+
+printf "\n👉 Installing Core Utilities & Motif Screensavers...\n"
+env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg install -y bash sudo unzip libzip git htop neofetch python3 bashtop smartmontools pciutils usbutils ImageMagick7 xscreensaver xmountains xdaliclock xlockmore
+
+printf "\n👉 Installing User Applications...\n"
+env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg install -y xfe firefox thunderbird xterm xpdf nedit scrot vlc feh
 
 if [ -d "/compat/linux/usr/lib64" ]; then
     [ -f "/compat/linux/usr/lib64/libtinfo.so.6" ] && ln -sf /compat/linux/usr/lib64/libtinfo.so.6 /compat/linux/usr/lib64/libtinfo.so.5
@@ -269,9 +284,6 @@ mkdir -p /usr/local/etc/sudoers.d
 echo "%wheel ALL=(ALL) ALL" > /usr/local/etc/sudoers.d/wheel
 chmod 0440 /usr/local/etc/sudoers.d/wheel
 
-# ========================================================================
-# FIX: ALLOW TOOLCHEST TO REBOOT/SHUTDOWN WITHOUT PASSWORD
-# ========================================================================
 echo "%wheel ALL=(ALL) NOPASSWD: /sbin/reboot, /sbin/poweroff" > /usr/local/etc/sudoers.d/power_management
 chmod 0440 /usr/local/etc/sudoers.d/power_management
 
