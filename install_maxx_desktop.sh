@@ -1,7 +1,7 @@
 #!/bin/sh
 # ==============================================================================
-# POST-INSTALL MAXX DESKTOP SGI - FREEBSD 15 RELEASE (PURE SH / MASTER V77)
-# FIX : Pkg Bootstrap Path & Environment variables for 100% Silent Install
+# POST-INSTALL MAXX DESKTOP SGI - FREEBSD 15 RELEASE (PURE SH / MASTER V78)
+# FIX : Sudo NOPASSWD rule for Toolchest Power Management (Reboot/Shutdown)
 # ==============================================================================
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -134,12 +134,8 @@ sysrc sddm_enable="YES"
 sysrc linux_enable="YES"
 sysrc rpcbind_enable="YES"
 
-# ========================================================================
-# FIX: THE IRONCLAD PKG BOOTSTRAP
-# Enforce absolute path to avoid FreeBSD stub conflicts in a fresh install
-# ========================================================================
 env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg bootstrap -f
-hash -r  # Force shell to refresh known executable paths
+hash -r
 env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg update -f
 
 env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg install -y xorg
@@ -272,6 +268,12 @@ step_start "5/10: Security and Localization"
 mkdir -p /usr/local/etc/sudoers.d
 echo "%wheel ALL=(ALL) ALL" > /usr/local/etc/sudoers.d/wheel
 chmod 0440 /usr/local/etc/sudoers.d/wheel
+
+# ========================================================================
+# FIX: ALLOW TOOLCHEST TO REBOOT/SHUTDOWN WITHOUT PASSWORD
+# ========================================================================
+echo "%wheel ALL=(ALL) NOPASSWD: /sbin/reboot, /sbin/poweroff" > /usr/local/etc/sudoers.d/power_management
+chmod 0440 /usr/local/etc/sudoers.d/power_management
 
 sysrc sshd_enable="YES"
 if grep -q "^PermitRootLogin" /etc/ssh/sshd_config; then
