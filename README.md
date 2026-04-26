@@ -1,6 +1,6 @@
 # FreeBSD15-Maxxdesktop
 
-Here is an installation script for Maxx Desktop Interactive on FreeBSD 15. This script was created with the help of Gemini AI, based on the original installation script for CentOS/Red Hat/Rocky Linux. The work was long and difficult. The system installs linux-rl9 and all its dependencies, but this version is operational with some limitations.
+Here is an installation script for Maxx Desktop Interactive on FreeBSD 15. This script was created with the help of Gemini AI, based on the original installation script for CentOS/Red Hat/Rocky Linux by Eric Masson. The work was long and difficult. The system installs linux-rl9 and all its dependencies, but this version is operational with some limitations.
 
 Here's how to download and run it.
 
