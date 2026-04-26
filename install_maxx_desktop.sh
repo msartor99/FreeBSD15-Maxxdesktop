@@ -1,7 +1,7 @@
 #!/bin/sh
 # ==============================================================================
-# POST-INSTALL MAXX DESKTOP SGI - FREEBSD 15 RELEASE (PURE SH / MASTER V75)
-# FONDATION : Locale/Keyboard Auto-Detect, English TUI, Complete Screensaver
+# POST-INSTALL MAXX DESKTOP SGI - FREEBSD 15 RELEASE (PURE SH / MASTER V77)
+# FIX : Pkg Bootstrap Path & Environment variables for 100% Silent Install
 # ==============================================================================
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -12,7 +12,6 @@ fi
 BACKTITLE="MaXX Desktop SGI - FreeBSD 15 Installer"
 
 # --- AUTO-DETECT SYSTEM DEFAULTS ---
-# Extract base keymap from rc.conf (e.g., 'ch.kbd' -> 'ch', 'fr.kbd' -> 'fr')
 SYS_KBD=$(sysrc -n keymap 2>/dev/null | grep -Eo '^[a-z]{2}' || echo "us")
 
 DEFAULT_LANG="en_US.UTF-8"
@@ -35,7 +34,7 @@ It is provided 'as is', without any express or implied warranty. \
 By using it, you agree that the author cannot be held responsible \
 for any data loss, system breakage, or other damage.\n\n\
 ACKNOWLEDGEMENTS\n\n\
-A huge thanks to Silicon Graphics Fan Computer community website \
+A huge thanks to Silicon Graphics fandom computer website \
 for providing their beautiful public domain images, used here to enhance \
 the login theme and boot splash screen.\n\n\
 Do you accept these conditions to continue?"
@@ -75,7 +74,6 @@ X11_KBD=$(bsddialog --backtitle "$BACKTITLE" --title "Keyboard Layout" --default
     "it" "Italian (QWERTY)" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then clear; echo "Installation cancelled."; exit 1; fi
 
-# Parse Keyboard Layout and Variant
 case "$X11_KBD" in
     *-*) XKBLAYOUT="${X11_KBD%%-*}"; XKBVARIANT="${X11_KBD##*-}" ;;
     *)   XKBLAYOUT="$X11_KBD"; XKBVARIANT="" ;;
@@ -116,7 +114,6 @@ if [ "$GPU_CHOICE" = "2" ]; then
     if [ $? -ne 0 ]; then clear; echo "Installation cancelled."; exit 1; fi
 fi
 
-# Clear screen before starting the automated process
 clear
 
 step_start() { 
@@ -137,11 +134,16 @@ sysrc sddm_enable="YES"
 sysrc linux_enable="YES"
 sysrc rpcbind_enable="YES"
 
-env ASSUME_ALWAYS_YES=YES pkg bootstrap
-env ASSUME_ALWAYS_YES=YES pkg update -f
+# ========================================================================
+# FIX: THE IRONCLAD PKG BOOTSTRAP
+# Enforce absolute path to avoid FreeBSD stub conflicts in a fresh install
+# ========================================================================
+env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg bootstrap -f
+hash -r  # Force shell to refresh known executable paths
+env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg update -f
 
-pkg install -y xorg
-pkg install -y bash sddm xfe firefox thunderbird xterm pulseaudio pavucontrol alsa-utils alsa-plugins xpdf xorg-apps nedit linux_base-rl9 linux-rl9 xprop pciutils usbutils scrot vlc ImageMagick7 feh sudo unzip libzip wget git htop neofetch python3 bashtop smartmontools xscreensaver xmountains xdaliclock xlockmore
+env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg install -y xorg
+env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg install -y bash sddm xfe firefox thunderbird xterm pulseaudio pavucontrol alsa-utils alsa-plugins xpdf xorg-apps nedit linux_base-rl9 linux-rl9 xprop pciutils usbutils scrot vlc ImageMagick7 feh sudo unzip libzip git htop neofetch python3 bashtop smartmontools xscreensaver xmountains xdaliclock xlockmore
 
 if [ -d "/compat/linux/usr/lib64" ]; then
     [ -f "/compat/linux/usr/lib64/libtinfo.so.6" ] && ln -sf /compat/linux/usr/lib64/libtinfo.so.6 /compat/linux/usr/lib64/libtinfo.so.5
@@ -156,11 +158,11 @@ case $GPU_CHOICE in
             3) NV_BASE="nvidia-driver-470"; NV_LIN="linux-nvidia-libs-470" ;;
             *) NV_BASE="nvidia-driver"; NV_LIN="linux-nvidia-libs" ;;
         esac
-        pkg install -y "$NV_BASE" "$NV_LIN" nvidia-xconfig
+        env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg install -y "$NV_BASE" "$NV_LIN" nvidia-xconfig
         GPU_ENV="export __GLX_VENDOR_LIBRARY_NAME=nvidia"
         ;;
-    3) GPU_NAME="Intel"; KMOD_DRIVER="i915kms"; pkg install -y drm-kmod libva-intel-driver; GPU_ENV="export LIBGL_ALWAYS_SOFTWARE=1" ;;
-    *) GPU_NAME="AMD"; KMOD_DRIVER="amdgpu"; pkg install -y drm-kmod; GPU_ENV="export LIBGL_ALWAYS_SOFTWARE=1" ;;
+    3) GPU_NAME="Intel"; KMOD_DRIVER="i915kms"; env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg install -y drm-kmod libva-intel-driver; GPU_ENV="export LIBGL_ALWAYS_SOFTWARE=1" ;;
+    *) GPU_NAME="AMD"; KMOD_DRIVER="amdgpu"; env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg install -y drm-kmod; GPU_ENV="export LIBGL_ALWAYS_SOFTWARE=1" ;;
 esac
 
 CURRENT_KMODS=$(sysrc -n kld_list)
@@ -217,13 +219,11 @@ service smartd start 2>/dev/null
 # --- STEP 4 : GRAPHICS STACK (XORG, SDDM, NVIDIA, KEYBOARD) ---
 step_start "4/10: Unified Graphics & Keyboard Configuration"
 
-# Set SDDM Language dynamically
 SDDM_LANG="${USER_LOCALE%%.*}"
 sysrc sddm_lang="$SDDM_LANG"
 
 mkdir -p /usr/local/etc/X11/xorg.conf.d
 
-# Generate dynamic X11 Keyboard config
 cat > /usr/local/etc/X11/xorg.conf.d/00-keyboard.conf << EOF
 Section "InputClass"
         Identifier "system-keyboard"
@@ -246,7 +246,6 @@ Section     "InputClass"
 EndSection
 EOF
 
-# Force Keyboard in SDDM Xsetup
 XSETUP="/usr/local/share/sddm/scripts/Xsetup"
 if [ -f "$XSETUP" ]; then
     if ! grep -q "setxkbmap" "$XSETUP"; then
@@ -259,7 +258,7 @@ if [ -f "$XSETUP" ]; then
 fi
 
 if [ "$GPU_NAME" = "NVIDIA" ]; then
-    printf "\nðŸ‘‰ Configuring Xorg for NVIDIA...\n"
+    printf "\n👉 Configuring Xorg for NVIDIA...\n"
     if [ -f /usr/local/bin/nvidia-xconfig ]; then
         nvidia-xconfig
     else
@@ -282,7 +281,6 @@ else
 fi
 service sshd restart >/dev/null 2>&1 || true
 
-# Dynamic login.conf generation based on user choice
 CLASS_NAME="custom_${USER_LOCALE%%.*}"
 sed -i '' "/^${CLASS_NAME}|/,/:tc=default:/d" /etc/login.conf 2>/dev/null
 printf "%s|Custom User Class:\n\t:charset=UTF-8:\n\t:lang=%s:\n\t:tc=default:\n" "$CLASS_NAME" "$USER_LOCALE" >> /etc/login.conf
@@ -307,7 +305,7 @@ if [ "$FORCE_DL" = "y" ] || [ "$FORCE_DL" = "Y" ]; then
     
     cd /tmp || exit 1
     TARBALL="MaXX-Desktop-v2.2.0-LINUX-x86_64-tar.gz"
-    [ ! -f "$TARBALL" ] && fetch https://s3.ca-central-1.amazonaws.com/cdn.maxxinteractive.com/maxx-desktop-installer/$TARBALL
+    [ ! -f "$TARBALL" ] && fetch -q https://s3.ca-central-1.amazonaws.com/cdn.maxxinteractive.com/maxx-desktop-installer/$TARBALL
     tar -xzf "$TARBALL" --strip-components=1 -C "$MAXX_LINUX"
 
     if [ -d "$MAXX_LINUX/bin64" ]; then
@@ -316,12 +314,18 @@ if [ "$FORCE_DL" = "y" ] || [ "$FORCE_DL" = "Y" ]; then
     find "$MAXX_LINUX" -type f -executable -exec brandelf -t Linux {} \; 2>/dev/null
 fi
 
+mkdir -p /opt
 ln -sf "$MAXX_LINUX" "$MAXX_HOST"
 
 mkdir -p /compat/linux/etc/ld.so.conf.d
 echo "/opt/MaXX/lib64" > /compat/linux/etc/ld.so.conf.d/maxx.conf
 echo "/opt/MaXX/lib" >> /compat/linux/etc/ld.so.conf.d/maxx.conf
-chroot /compat/linux /sbin/ldconfig
+
+if [ -x "/compat/linux/usr/sbin/ldconfig" ]; then
+    chroot /compat/linux /usr/sbin/ldconfig
+elif [ -x "/compat/linux/sbin/ldconfig" ]; then
+    chroot /compat/linux /sbin/ldconfig
+fi
 
 # --- STEP 7 : SPLASH SCREEN, BOOT LOGO AND SDDM ---
 step_start "7/10: Generating SGI Splash (RGBA), Boot Logo and SDDM"
@@ -334,8 +338,7 @@ SGI_MENU_LOGO_URL="https://raw.githubusercontent.com/msartor99/FreeBSD15-Maxxdes
 
 cd "$IMG_DIR" || exit 1
 
-# 1. Boot Menu Logo
-wget -q -U "Mozilla/5.0" -O "sgi_menu_src.png" "$SGI_MENU_LOGO_URL"
+fetch -q -o "sgi_menu_src.png" "$SGI_MENU_LOGO_URL"
 if [ -f "sgi_menu_src.png" ]; then
     cp "sgi_menu_src.png" "freebsd-brand-rev.png"
     cp "sgi_menu_src.png" "freebsd-brand.png"
@@ -345,18 +348,16 @@ if [ -f "sgi_menu_src.png" ]; then
     sed -i '' '/loader_brand/d' /boot/loader.conf 2>/dev/null
 fi
 
-# 2. Splash Screen and SDDM Background
-wget -q -U "Mozilla/5.0" -O "sgi_desktop.jpg" "$SGI_WALLPAPER_URL"
+fetch -q -o "sgi_desktop.jpg" "$SGI_WALLPAPER_URL"
 if [ -f "sgi_desktop.jpg" ]; then
     PATH="/usr/local/bin:$PATH"
     
-    magick sgi_desktop.jpg -resize 1920x1200^ -gravity center -extent 1920x1200 -alpha set -define png:color-type=6 "png32:sgi_boot.png"
+    /usr/local/bin/magick sgi_desktop.jpg -resize 1920x1200^ -gravity center -extent 1920x1200 -alpha set -define png:color-type=6 "png32:sgi_boot.png"
     
     if [ -f "sgi_boot.png" ]; then
         sysrc -f /boot/loader.conf splash="/boot/images/sgi_boot.png"
     fi
     
-    # SDDM Theme creation
     SDDM_BASE="/usr/local/share/sddm/themes"
     if [ -d "$SDDM_BASE/maldives" ]; then
         rm -rf "$SDDM_BASE/sgi_irix"
@@ -391,7 +392,6 @@ EOF
     chmod +x "$WD/$1"
 }
 
-# App Wrappers
 create_wrapper "firefox" "/usr/local/bin/firefox"
 create_wrapper "thunderbird" "/usr/local/bin/thunderbird"
 create_wrapper "xfe" "/usr/local/bin/xfe"
@@ -401,11 +401,9 @@ create_wrapper "sysinfo" "/usr/local/bin/xterm -title 'System Info' -e htop"
 create_wrapper "top" "/usr/local/bin/xterm -title 'Process Monitor' -e bashtop"
 create_wrapper "pavucontrol" "/usr/local/bin/pavucontrol"
 
-# Power Management Wrappers
 create_wrapper "sys_reboot" "sudo /sbin/reboot"
 create_wrapper "sys_poweroff" "sudo /sbin/poweroff"
 
-# Replacing symbolic links
 rm -f "$MAXX_HOST/bin/WEBBROWSER"; ln -sf "$WD/firefox" "$MAXX_HOST/bin/WEBBROWSER"
 rm -f "$MAXX_HOST/bin/EMAILCLIENT"; ln -sf "$WD/thunderbird" "$MAXX_HOST/bin/EMAILCLIENT"
 rm -f "$MAXX_HOST/bin/winterm"; ln -sf "$WD/unix_shell" "$MAXX_HOST/bin/winterm"
@@ -416,7 +414,6 @@ rm -f "$MAXX_HOST/bin/gr_osview2"; ln -sf "$WD/sysinfo" "$MAXX_HOST/bin/gr_osvie
 rm -f "$MAXX_HOST/bin/gmemusage"; ln -sf "$WD/top" "$MAXX_HOST/bin/gmemusage"
 rm -f "$MAXX_HOST/bin/msound"; ln -sf "$WD/pavucontrol" "$MAXX_HOST/bin/msound"
 
-# Hijacking Toolchest Power Commands
 rm -f "$MAXX_HOST/bin/reboot"; ln -sf "$WD/sys_reboot" "$MAXX_HOST/bin/reboot"
 rm -f "$MAXX_HOST/bin/maxx-reboot"; ln -sf "$WD/sys_reboot" "$MAXX_HOST/bin/maxx-reboot"
 rm -f "$MAXX_HOST/bin/poweroff"; ln -sf "$WD/sys_poweroff" "$MAXX_HOST/bin/poweroff"
@@ -427,7 +424,6 @@ rm -f "$MAXX_HOST/bin/halt"; ln -sf "$WD/sys_poweroff" "$MAXX_HOST/bin/halt"
 # --- STEP 9 : START_MAXX ---
 step_start "9/10: Session Script & SDDM Configuration"
 
-# We dynamically generate the start_maxx script using the selected USER_LOCALE
 cat > /usr/local/bin/start_maxx << EOF
 #!/usr/local/bin/bash
 export LANG="$USER_LOCALE"
@@ -452,7 +448,6 @@ xset b off 2>/dev/null
 
 pulseaudio --start --exit-idle-time=-1 2>/dev/null &
 
-# Motif Screensaver with standard X11 demos
 xscreensaver -nosplash &
 
 $GPU_ENV
@@ -483,4 +478,3 @@ Type=Application
 EOF
 
 step_done "Installation completed successfully. Please reboot your system."
-
