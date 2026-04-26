@@ -1,7 +1,7 @@
 #!/bin/sh
 # ==============================================================================
-# POST-INSTALL MAXX DESKTOP SGI - FREEBSD 15 RELEASE (PURE SH / MASTER V81)
-# FIX : Dual-architecture Binary Hijacking (bin & bin64) for Toolchest apps
+# POST-INSTALL MAXX DESKTOP SGI - FREEBSD 15 RELEASE (PURE SH / MASTER V82)
+# FINAL VERSION: Includes all fixes (Hybrid bin/bin64, Case-sensitivity, Native Power)
 # ==============================================================================
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -387,10 +387,6 @@ fi
 cd - >/dev/null
 
 # --- STEP 8 : BINARY HIJACKING (WRAPPERS & POWER) ---
-# ========================================================================
-# FIX: Dual-architecture loop (bin and bin64) to ensure the Toolchest 
-# finds the wrappers regardless of the path it hardcodes.
-# ========================================================================
 step_start "8/10: Hijacking MaXX binaries (Wrappers & Power Management)"
 
 WD="$MAXX_HOST/bin/wrappers"
@@ -409,6 +405,17 @@ EOF
     chmod +x "$WD/$1"
 }
 
+# New Native Power Wrappers (No Sudo needed for Operator group)
+cat > "$WD/sys_reboot" << 'EOF'
+#!/usr/local/bin/bash
+/sbin/shutdown -r now
+EOF
+
+cat > "$WD/sys_poweroff" << 'EOF'
+#!/usr/local/bin/bash
+/sbin/shutdown -p now
+EOF
+
 create_wrapper "firefox" "/usr/local/bin/firefox"
 create_wrapper "thunderbird" "/usr/local/bin/thunderbird"
 create_wrapper "xfe" "/usr/local/bin/xfe"
@@ -418,8 +425,7 @@ create_wrapper "sysinfo" "/usr/local/bin/xterm -title 'System Info' -e htop"
 create_wrapper "top" "/usr/local/bin/xterm -title 'Process Monitor' -e bashtop"
 create_wrapper "pavucontrol" "/usr/local/bin/pavucontrol"
 
-create_wrapper "sys_reboot" "sudo /sbin/reboot"
-create_wrapper "sys_poweroff" "sudo /sbin/poweroff"
+chmod +x "$WD/sys_reboot" "$WD/sys_poweroff"
 
 for BIN_DIR in "$MAXX_HOST/bin" "$MAXX_HOST/bin64"; do
     [ ! -d "$BIN_DIR" ] && continue
@@ -430,7 +436,7 @@ for BIN_DIR in "$MAXX_HOST/bin" "$MAXX_HOST/bin64"; do
     rm -f "$BIN_DIR/adminterm"; ln -sf "$WD/admin_shell" "$BIN_DIR/adminterm"
     rm -f "$BIN_DIR/fm"; ln -sf "$WD/xfe" "$BIN_DIR/fm"
     
-    # System Monitor Hijacks
+    # Resource Monitor Hijacks
     rm -f "$BIN_DIR/tellsystem"; ln -sf "$WD/sysinfo" "$BIN_DIR/tellsystem"
     rm -f "$BIN_DIR/gr_osview2"; ln -sf "$WD/sysinfo" "$BIN_DIR/gr_osview2"
     rm -f "$BIN_DIR/xosview2"; ln -sf "$WD/sysinfo" "$BIN_DIR/xosview2"
@@ -440,13 +446,16 @@ for BIN_DIR in "$MAXX_HOST/bin" "$MAXX_HOST/bin64"; do
     
     rm -f "$BIN_DIR/msound"; ln -sf "$WD/pavucontrol" "$BIN_DIR/msound"
 
-    # Power Management Hijacks
+    # Power Management Hijacks (Hybrid Case-sensitive)
     rm -f "$BIN_DIR/reboot"; ln -sf "$WD/sys_reboot" "$BIN_DIR/reboot"
     rm -f "$BIN_DIR/maxx-reboot"; ln -sf "$WD/sys_reboot" "$BIN_DIR/maxx-reboot"
+    rm -f "$BIN_DIR/Restart"; ln -sf "$WD/sys_reboot" "$BIN_DIR/Restart"
+    
     rm -f "$BIN_DIR/poweroff"; ln -sf "$WD/sys_poweroff" "$BIN_DIR/poweroff"
     rm -f "$BIN_DIR/maxx-poweroff"; ln -sf "$WD/sys_poweroff" "$BIN_DIR/maxx-poweroff"
     rm -f "$BIN_DIR/shutdown"; ln -sf "$WD/sys_poweroff" "$BIN_DIR/shutdown"
     rm -f "$BIN_DIR/halt"; ln -sf "$WD/sys_poweroff" "$BIN_DIR/halt"
+    rm -f "$BIN_DIR/Shutdown"; ln -sf "$WD/sys_poweroff" "$BIN_DIR/Shutdown"
 done
 
 # --- STEP 9 : START_MAXX ---
