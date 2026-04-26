@@ -35,7 +35,7 @@ It is provided 'as is', without any express or implied warranty. \
 By using it, you agree that the author cannot be held responsible \
 for any data loss, system breakage, or other damage.\n\n\
 ACKNOWLEDGEMENTS\n\n\
-A huge thanks to Silicon Graphics fandom computer website \
+A huge thanks to Silicon Graphics Fan Computer community website \
 for providing their beautiful public domain images, used here to enhance \
 the login theme and boot splash screen.\n\n\
 Do you accept these conditions to continue?"
