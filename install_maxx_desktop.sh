@@ -1,7 +1,7 @@
 #!/bin/sh
 # ==============================================================================
-# POST-INSTALL MAXX DESKTOP SGI - FREEBSD 15 RELEASE (PURE SH / MASTER V80)
-# FIX : kldload linux before linux-rl9 pkg installation
+# POST-INSTALL MAXX DESKTOP SGI - FREEBSD 15 RELEASE (PURE SH / MASTER V81)
+# FIX : Dual-architecture Binary Hijacking (bin & bin64) for Toolchest apps
 # ==============================================================================
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -142,7 +142,6 @@ printf "\n👉 Installing Base X11 Server...\n"
 env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg install -y xorg xprop xorg-apps
 
 printf "\n👉 Installing Linuxulator (Rocky Linux 9)...\n"
-# FIX: Load linux modules into memory before pkg executes post-install scripts
 kldload linux64 2>/dev/null
 kldload linux 2>/dev/null
 env ASSUME_ALWAYS_YES=YES /usr/sbin/pkg install -y linux_base-rl9 linux-rl9
@@ -388,6 +387,10 @@ fi
 cd - >/dev/null
 
 # --- STEP 8 : BINARY HIJACKING (WRAPPERS & POWER) ---
+# ========================================================================
+# FIX: Dual-architecture loop (bin and bin64) to ensure the Toolchest 
+# finds the wrappers regardless of the path it hardcodes.
+# ========================================================================
 step_start "8/10: Hijacking MaXX binaries (Wrappers & Power Management)"
 
 WD="$MAXX_HOST/bin/wrappers"
@@ -418,22 +421,33 @@ create_wrapper "pavucontrol" "/usr/local/bin/pavucontrol"
 create_wrapper "sys_reboot" "sudo /sbin/reboot"
 create_wrapper "sys_poweroff" "sudo /sbin/poweroff"
 
-rm -f "$MAXX_HOST/bin/WEBBROWSER"; ln -sf "$WD/firefox" "$MAXX_HOST/bin/WEBBROWSER"
-rm -f "$MAXX_HOST/bin/EMAILCLIENT"; ln -sf "$WD/thunderbird" "$MAXX_HOST/bin/EMAILCLIENT"
-rm -f "$MAXX_HOST/bin/winterm"; ln -sf "$WD/unix_shell" "$MAXX_HOST/bin/winterm"
-rm -f "$MAXX_HOST/bin/adminterm"; ln -sf "$WD/admin_shell" "$MAXX_HOST/bin/adminterm"
-rm -f "$MAXX_HOST/bin/fm"; ln -sf "$WD/xfe" "$MAXX_HOST/bin/fm"
-rm -f "$MAXX_HOST/bin/tellsystem"; ln -sf "$WD/sysinfo" "$MAXX_HOST/bin/tellsystem"
-rm -f "$MAXX_HOST/bin/gr_osview2"; ln -sf "$WD/sysinfo" "$MAXX_HOST/bin/gr_osview2"
-rm -f "$MAXX_HOST/bin/gmemusage"; ln -sf "$WD/top" "$MAXX_HOST/bin/gmemusage"
-rm -f "$MAXX_HOST/bin/msound"; ln -sf "$WD/pavucontrol" "$MAXX_HOST/bin/msound"
+for BIN_DIR in "$MAXX_HOST/bin" "$MAXX_HOST/bin64"; do
+    [ ! -d "$BIN_DIR" ] && continue
+    
+    rm -f "$BIN_DIR/WEBBROWSER"; ln -sf "$WD/firefox" "$BIN_DIR/WEBBROWSER"
+    rm -f "$BIN_DIR/EMAILCLIENT"; ln -sf "$WD/thunderbird" "$BIN_DIR/EMAILCLIENT"
+    rm -f "$BIN_DIR/winterm"; ln -sf "$WD/unix_shell" "$BIN_DIR/winterm"
+    rm -f "$BIN_DIR/adminterm"; ln -sf "$WD/admin_shell" "$BIN_DIR/adminterm"
+    rm -f "$BIN_DIR/fm"; ln -sf "$WD/xfe" "$BIN_DIR/fm"
+    
+    # System Monitor Hijacks
+    rm -f "$BIN_DIR/tellsystem"; ln -sf "$WD/sysinfo" "$BIN_DIR/tellsystem"
+    rm -f "$BIN_DIR/gr_osview2"; ln -sf "$WD/sysinfo" "$BIN_DIR/gr_osview2"
+    rm -f "$BIN_DIR/xosview2"; ln -sf "$WD/sysinfo" "$BIN_DIR/xosview2"
+    rm -f "$BIN_DIR/xosview"; ln -sf "$WD/sysinfo" "$BIN_DIR/xosview"
+    rm -f "$BIN_DIR/xsensors"; ln -sf "$WD/sysinfo" "$BIN_DIR/xsensors"
+    rm -f "$BIN_DIR/gmemusage"; ln -sf "$WD/top" "$BIN_DIR/gmemusage"
+    
+    rm -f "$BIN_DIR/msound"; ln -sf "$WD/pavucontrol" "$BIN_DIR/msound"
 
-rm -f "$MAXX_HOST/bin/reboot"; ln -sf "$WD/sys_reboot" "$MAXX_HOST/bin/reboot"
-rm -f "$MAXX_HOST/bin/maxx-reboot"; ln -sf "$WD/sys_reboot" "$MAXX_HOST/bin/maxx-reboot"
-rm -f "$MAXX_HOST/bin/poweroff"; ln -sf "$WD/sys_poweroff" "$MAXX_HOST/bin/poweroff"
-rm -f "$MAXX_HOST/bin/maxx-poweroff"; ln -sf "$WD/sys_poweroff" "$MAXX_HOST/bin/maxx-poweroff"
-rm -f "$MAXX_HOST/bin/shutdown"; ln -sf "$WD/sys_poweroff" "$MAXX_HOST/bin/shutdown"
-rm -f "$MAXX_HOST/bin/halt"; ln -sf "$WD/sys_poweroff" "$MAXX_HOST/bin/halt"
+    # Power Management Hijacks
+    rm -f "$BIN_DIR/reboot"; ln -sf "$WD/sys_reboot" "$BIN_DIR/reboot"
+    rm -f "$BIN_DIR/maxx-reboot"; ln -sf "$WD/sys_reboot" "$BIN_DIR/maxx-reboot"
+    rm -f "$BIN_DIR/poweroff"; ln -sf "$WD/sys_poweroff" "$BIN_DIR/poweroff"
+    rm -f "$BIN_DIR/maxx-poweroff"; ln -sf "$WD/sys_poweroff" "$BIN_DIR/maxx-poweroff"
+    rm -f "$BIN_DIR/shutdown"; ln -sf "$WD/sys_poweroff" "$BIN_DIR/shutdown"
+    rm -f "$BIN_DIR/halt"; ln -sf "$WD/sys_poweroff" "$BIN_DIR/halt"
+done
 
 # --- STEP 9 : START_MAXX ---
 step_start "9/10: Session Script & SDDM Configuration"
