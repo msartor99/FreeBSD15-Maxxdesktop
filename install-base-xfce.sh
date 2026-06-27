@@ -103,11 +103,22 @@ echo "[+] Syncing repository catalogs..."
 env ASSUME_ALWAYS_YES=YES pkg bootstrap -f
 env ASSUME_ALWAYS_YES=YES pkg update -f
 
-echo "[+] Installing X11 Display Server and Core utilities..."
-pkg install -y xorg xprop xorg-apps dbus sddm xfce xfce4-goodies wget bash sudo unzip libzip git htop python3 bashtop smartmontools ImageMagick7 feh
+echo "[+] Installing X11 Display Server, XFCE, and Core utilities..."
+pkg install -y xorg xprop xorg-apps dbus sddm wget bash sudo unzip libzip git htop python3 bashtop smartmontools ImageMagick7 feh
+pkg install -y xfce xfce4-goodies
 
 echo "[+] Installing Toolchest Native Utilities..."
 pkg install -y xterm xscreensaver xkill xprop xwininfo gnome-system-monitor gnome-screenshot firefox thunderbird vlc xfe
+
+echo "[+] Forcing XFCE Registration for SDDM..."
+mkdir -p /usr/local/share/xsessions
+cat << 'EOF' > /usr/local/share/xsessions/xfce.desktop
+[Desktop Entry]
+Name=XFCE (Fallback)
+Comment=Environnement de bureau XFCE4 de secours
+Exec=/usr/local/bin/startxfce4
+Type=Application
+EOF
 
 # --- 2. GPU HARDWARE CONFIGURATION ---
 echo "[+] Provisioning Graphics Stack..."
@@ -223,23 +234,3 @@ if [ -f "$IMG_DIR/sgi_desktop.jpg" ]; then
     /usr/local/bin/magick "$IMG_DIR/sgi_desktop.jpg" -resize 1920x1200^ -gravity center -extent 1920x1200 -alpha set -define png:color-type=6 "png32:$IMG_DIR/sgi_boot.png"
     if [ -f "$IMG_DIR/sgi_boot.png" ]; then
         sysrc -f /boot/loader.conf splash="/boot/images/sgi_boot.png"
-    fi
-    SDDM_BASE="/usr/local/share/sddm/themes"
-    if [ -d "$SDDM_BASE/maldives" ]; then
-        rm -rf "$SDDM_BASE/sgi_irix"
-        cp -R "$SDDM_BASE/maldives" "$SDDM_BASE/sgi_irix"
-        cp "$IMG_DIR/sgi_desktop.jpg" "$SDDM_BASE/sgi_irix/sgi_desktop.jpg"
-        sed -i '' "s|^background=.*|background=sgi_desktop.jpg|" "$SDDM_BASE/sgi_irix/theme.conf"
-        mkdir -p /usr/local/etc/sddm.conf.d
-        cat > /usr/local/etc/sddm.conf.d/10-theme.conf << 'EOF'
-[Theme]
-Current=sgi_irix
-EOF
-    fi
-fi
-
-echo "=========================================================="
-echo " Phase 1 Completed successfully!"
-echo " A critical reboot is required to activate the graphics engine."
-echo " Execute: 'reboot' and run Script 2 after logging back in."
-echo "=========================================================="
