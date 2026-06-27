@@ -119,7 +119,13 @@ case $GPU_CHOICE in
             3) NV_BASE="nvidia-driver-470"; NV_LIN="linux-nvidia-libs-470" ;;
             *) NV_BASE="nvidia-driver"; NV_LIN="linux-nvidia-libs" ;;
         esac
-        pkg install -y "$NV_BASE" "$NV_LIN" nvidia-xconfig
+        # Split installs to ensure the main driver succeeds even if optional libs fail
+        echo "[+] Installing main NVIDIA driver..."
+        pkg install -y "$NV_BASE"
+        echo "[+] Installing Linux compatibility libraries and tools (optional)..."
+        pkg install -y "$NV_LIN" 2>/dev/null || echo "Warning: $NV_LIN unavailable, skipping."
+        pkg install -y nvidia-xconfig 2>/dev/null || echo "Warning: nvidia-xconfig unavailable, skipping."
+        
         [ -f /usr/local/bin/nvidia-xconfig ] && nvidia-xconfig
         ;;
     3)
