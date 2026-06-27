@@ -37,8 +37,7 @@ echo "=========================================================="
 
 # --- 1. LINUX INTERPRETATION LAYER ---
 echo "[+] Extracting additional Linux compatibility decoders..."
-# Note: linux-rl9-png and linux-rl9-jpeg are now natively bundled in linux_base-rl9 on FreeBSD 15
-pkg install -y linux_base-rl9 linux-rl9 linux-rl9-xorg-libs linux-rl9-gdk-pixbuf2 linux-rl9-librsvg2 linux-rl9-gtk2 pipewire wireplumber audio/freedesktop-sound-theme
+pkg install -y linux-rl9 linux-rl9-xorg-libs linux-rl9-gdk-pixbuf2 linux-rl9-librsvg2 linux-rl9-gtk2 pipewire wireplumber audio/freedesktop-sound-theme
 
 [ ! -e /bin/bash ] && ln -sf /usr/local/bin/bash /bin/bash
 
@@ -129,6 +128,7 @@ echo "[+] Deploying routing wrappers to replace dysfunctional entrypoints..."
 WD="$MAXX_HOST/bin/wrappers"
 mkdir -p "$WD"
 
+# Generic wrapper pour les apps modernes (avec forçage de la langue FR)
 create_wrapper() {
     cat > "$WD/$1" << EOF
 #!/usr/local/bin/bash
@@ -157,10 +157,26 @@ chmod +x "$WD/sys_reboot" "$WD/sys_poweroff"
 create_wrapper "firefox" "/usr/local/bin/firefox"
 create_wrapper "thunderbird" "/usr/local/bin/thunderbird"
 create_wrapper "xfe" "/usr/local/bin/xfe"
-create_wrapper "sysinfo" "/usr/local/bin/xterm -title 'System Info' -e htop"
-create_wrapper "top" "/usr/local/bin/xterm -title 'Process Monitor' -e bashtop"
 create_wrapper "pavucontrol" "/usr/local/bin/pavucontrol"
 create_wrapper "gnome-screenshot" "/usr/local/bin/gnome-screenshot -i"
+
+# Wrapper pour System Monitor (htop) - Thème SGI Vert foncé
+cat << 'EOF' > "$WD/sysinfo"
+#!/usr/local/bin/bash
+export DISPLAY=:0
+export PATH="/usr/local/bin:/usr/bin:/bin"
+exec /usr/local/bin/xterm -name "SysMonitor" -title "System Monitor" -bg "#003300" -fg white -e htop
+EOF
+chmod +x "$WD/sysinfo"
+
+# Wrapper robuste pour Memory Monitor (bashtop) - Thème SGI Bleu nuit
+cat << 'EOF' > "$WD/gmemusage"
+#!/usr/local/bin/bash
+export DISPLAY=:0
+export PATH="/usr/local/bin:/usr/bin:/bin"
+exec /usr/local/bin/xterm -name "MemMonitor" -title "Memory Monitor" -bg "#000033" -fg white -e bashtop
+EOF
+chmod +x "$WD/gmemusage"
 
 # Wrapper foolproof pour xkill (Force le DISPLAY et attend la fermeture du menu)
 cat << 'EOF' > "$WD/xkill"
@@ -189,9 +205,19 @@ for BIN_DIR in "$MAXX_HOST/bin" "$MAXX_HOST/bin32" "$MAXX_HOST/bin64"; do
     ln -sf "$WD/xkill" "$BIN_DIR/xkill"
     ln -sf "$WD/xkill" "$BIN_DIR/Xkill"
 
-    rm -f "$BIN_DIR/xterm"; ln -sf "$WD/xterm" "$BIN_DIR/xterm"
     rm -f "$BIN_DIR/xprop"; ln -sf /usr/local/bin/xprop "$BIN_DIR/xprop"
     rm -f "$BIN_DIR/xwininfo"; ln -sf /usr/local/bin/xwininfo "$BIN_DIR/xwininfo"
+    
+    # Routage propre pour Memory Monitor
+    rm -f "$BIN_DIR/gmemusage"
+    ln -sf "$WD/gmemusage" "$BIN_DIR/gmemusage"
+    
+    # Routage propre pour System Monitor
+    rm -f "$BIN_DIR/tellsystem" "$BIN_DIR/gr_osview2" "$BIN_DIR/xosview2" "$BIN_DIR/xosview"
+    ln -sf "$WD/sysinfo" "$BIN_DIR/tellsystem"
+    ln -sf "$WD/sysinfo" "$BIN_DIR/gr_osview2"
+    ln -sf "$WD/sysinfo" "$BIN_DIR/xosview2"
+    ln -sf "$WD/sysinfo" "$BIN_DIR/xosview"
     
     # Direct Shell Script Wrappers with Keyboard Layout enforcement
     cat << EOF > "$BIN_DIR/winterm"
@@ -214,10 +240,6 @@ EOF
     chmod +x "$BIN_DIR/winterm" "$BIN_DIR/adminterm" "$BIN_DIR/xsensors"
     
     # Diagnostic Engine Bindings
-    rm -f "$BIN_DIR/tellsystem" "$BIN_DIR/gr_osview2" "$BIN_DIR/xosview2" "$BIN_DIR/xosview"
-    ln -sf "$WD/sysinfo" "$BIN_DIR/tellsystem"; ln -sf "$WD/sysinfo" "$BIN_DIR/gr_osview2"
-    ln -sf "$WD/sysinfo" "$BIN_DIR/xosview2"; ln -sf "$WD/sysinfo" "$BIN_DIR/xosview"
-    rm -f "$BIN_DIR/gmemusage"; ln -sf "$WD/top" "$BIN_DIR/gmemusage"
     rm -f "$BIN_DIR/msound"; ln -sf "$WD/pavucontrol" "$BIN_DIR/msound"
     rm -f "$BIN_DIR/ScreenShot"; ln -sf "$WD/gnome-screenshot" "$BIN_DIR/ScreenShot"
 
@@ -236,6 +258,11 @@ cat << EOF > "$WD/xterm"
 exec /usr/local/bin/xterm "\$@"
 EOF
 chmod +x "$WD/xterm"
+for BIN_DIR in "$MAXX_HOST/bin" "$MAXX_HOST/bin32" "$MAXX_HOST/bin64"; do
+    [ ! -d "$BIN_DIR" ] && continue
+    rm -f "$BIN_DIR/xterm"
+    ln -sf "$WD/xterm" "$BIN_DIR/xterm"
+done
 
 # --- 6. SECURE STARTUP ENGINE WITH CLEAN CHANNELS ---
 echo "[+] Locking unified startup routines..."
@@ -253,15 +280,13 @@ cat << 'EOF' > /usr/local/bin/start-maxx.sh
 export MAXX_HOME=/opt/MaXX
 export PATH=$MAXX_HOME/bin:$MAXX_HOME/bin64:$PATH
 
-# 1. Activation indispensable de D-Bus (pour Firefox, le son et les langues)
+# 1. Activation indispensable de D-Bus (pour Firefox et le son)
 if [ -z "$DBUS_SESSION_BUS_ADDRESS" ]; then
     eval $(dbus-launch --sh-syntax --exit-with-session)
     export DBUS_SESSION_BUS_ADDRESS
 fi
 
-# 2. Forçage propre de l'environnement linguistique fr_FR
-export LANG=fr_FR.UTF-8
-export LC_ALL=fr_FR.UTF-8
+# Note: Pas de forçage global de LANG ici pour éviter le crash du Toolchest (Motif)
 
 # Map the pathing so ROX-Filer reads vector graphics
 export XDG_DATA_DIRS=$MAXX_HOME/share:/compat/linux/usr/share:/usr/local/share:/usr/share
