@@ -1,4 +1,5 @@
 # MaXX Interactive Desktop on FreeBSD 15 🚀
+# june 27 2026 : new version
 *The legendary IRIX / Silicon Graphics experience, resurrected on modern UNIX.*
 
 This repository provides two highly optimized, idempotent `bash` scripts to transform a fresh FreeBSD 15 installation into a fully functional, 3D-accelerated workstation featuring the **MaXX Interactive Desktop** (a modern clone of the SGI IRIX environment).
