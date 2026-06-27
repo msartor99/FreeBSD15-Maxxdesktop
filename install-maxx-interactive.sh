@@ -37,7 +37,8 @@ echo "=========================================================="
 
 # --- 1. LINUX INTERPRETATION LAYER ---
 echo "[+] Extracting additional Linux compatibility decoders..."
-pkg install -y linux_base-rl9 linux-rl9 linux-rl9-xorg-libs linux-rl9-gdk-pixbuf2 linux-rl9-png linux-rl9-jpeg linux-rl9-librsvg2 linux-rl9-gtk2 pipewire wireplumber audio/freedesktop-sound-theme
+# Note: linux-rl9-png and linux-rl9-jpeg are now natively bundled in linux_base-rl9 on FreeBSD 15
+pkg install -y linux_base-rl9 linux-rl9 linux-rl9-xorg-libs linux-rl9-gdk-pixbuf2 linux-rl9-librsvg2 linux-rl9-gtk2 pipewire wireplumber audio/freedesktop-sound-theme
 
 [ ! -e /bin/bash ] && ln -sf /usr/local/bin/bash /bin/bash
 
@@ -159,14 +160,19 @@ create_wrapper "top" "/usr/local/bin/xterm -title 'Process Monitor' -e bashtop"
 create_wrapper "pavucontrol" "/usr/local/bin/pavucontrol"
 create_wrapper "gnome-screenshot" "/usr/local/bin/gnome-screenshot -i"
 
-# Wrapper foolproof pour xkill (Force le DISPLAY pour le Toolchest)
+# Wrapper foolproof pour xkill (Force le DISPLAY et attend la fermeture du menu)
 cat << 'EOF' > "$WD/xkill"
 #!/usr/local/bin/bash
 export DISPLAY=:0
 export PATH="/usr/local/bin:/usr/bin:/bin"
+sleep 1
 exec /usr/local/bin/xkill
 EOF
 chmod +x "$WD/xkill"
+
+# Extraction de la configuration du clavier pour injection dynamique dans les terminaux
+XKBLAYOUT=$(grep 'Option "XkbLayout"' /usr/local/etc/X11/xorg.conf.d/00-keyboard.conf 2>/dev/null | awk '{print $3}' | tr -d '"')
+XKBVARIANT=$(grep 'Option "XkbVariant"' /usr/local/etc/X11/xorg.conf.d/00-keyboard.conf 2>/dev/null | awk '{print $3}' | tr -d '"')
 
 for BIN_DIR in "$MAXX_HOST/bin" "$MAXX_HOST/bin32" "$MAXX_HOST/bin64"; do
     [ ! -d "$BIN_DIR" ] && continue
@@ -185,17 +191,22 @@ for BIN_DIR in "$MAXX_HOST/bin" "$MAXX_HOST/bin32" "$MAXX_HOST/bin64"; do
     rm -f "$BIN_DIR/xprop"; ln -sf /usr/local/bin/xprop "$BIN_DIR/xprop"
     rm -f "$BIN_DIR/xwininfo"; ln -sf /usr/local/bin/xwininfo "$BIN_DIR/xwininfo"
     
-    # Direct Shell Script Wrappers
-    cat << 'EOF' > "$BIN_DIR/winterm"
+    # Direct Shell Script Wrappers with Keyboard Layout enforcement
+    cat << EOF > "$BIN_DIR/winterm"
 #!/bin/sh
+[ -n "$XKBLAYOUT" ] && /usr/local/bin/setxkbmap $XKBLAYOUT ${XKBVARIANT:+-variant $XKBVARIANT}
 exec /usr/local/bin/xterm -name UnixShell -title "Unix Shell" -sb -sl 1000
 EOF
-    cat << 'EOF' > "$BIN_DIR/adminterm"
+
+    cat << EOF > "$BIN_DIR/adminterm"
 #!/bin/sh
+[ -n "$XKBLAYOUT" ] && /usr/local/bin/setxkbmap $XKBLAYOUT ${XKBVARIANT:+-variant $XKBVARIANT}
 exec /usr/local/bin/xterm -name AdminShell -title "Admin Shell" -bg "#4d0000" -fg white -e sudo -i
 EOF
-    cat << 'EOF' > "$BIN_DIR/xsensors"
+
+    cat << EOF > "$BIN_DIR/xsensors"
 #!/bin/sh
+[ -n "$XKBLAYOUT" ] && /usr/local/bin/setxkbmap $XKBLAYOUT ${XKBVARIANT:+-variant $XKBVARIANT}
 exec /usr/local/bin/xterm -title "System Monitor" -e htop
 EOF
     chmod +x "$BIN_DIR/winterm" "$BIN_DIR/adminterm" "$BIN_DIR/xsensors"
@@ -216,7 +227,15 @@ EOF
     ln -sf "$WD/sys_poweroff" "$BIN_DIR/shutdown"; ln -sf "$WD/sys_poweroff" "$BIN_DIR/Shutdown"
 done
 
-# --- 6. SECURE STARTUP ENGINE WITH AUTO-KEYBOARD ---
+# Infiltration locale dans le wrapper global xterm pour couvrir ROX-Filer et appels annexes
+cat << EOF > "$WD/xterm"
+#!/bin/sh
+[ -n "$XKBLAYOUT" ] && /usr/local/bin/setxkbmap $XKBLAYOUT ${XKBVARIANT:+-variant $XKBVARIANT}
+exec /usr/local/bin/xterm "\$@"
+EOF
+chmod +x "$WD/xterm"
+
+# --- 6. SECURE STARTUP ENGINE WITH CLEAN CHANNELS ---
 echo "[+] Locking unified startup routines..."
 mkdir -p /usr/local/share/xsessions
 cat << 'EOF' > /usr/local/share/xsessions/maxx.desktop
@@ -232,8 +251,9 @@ cat << 'EOF' > /usr/local/bin/start-maxx.sh
 export MAXX_HOME=/opt/MaXX
 export PATH=$MAXX_HOME/bin:$MAXX_HOME/bin64:$PATH
 
-export LANG=$(sysrc -n sddm_lang 2>/dev/null).UTF-8
-export LC_ALL=$(sysrc -n sddm_lang 2>/dev/null).UTF-8
+# Language configuration inherited cleanly via login class
+export LANG=fr_FR.UTF-8
+export LC_ALL=fr_FR.UTF-8
 
 # Map the pathing so ROX-Filer reads vector graphics
 export XDG_DATA_DIRS=$MAXX_HOME/share:/compat/linux/usr/share:/usr/local/share:/usr/share
@@ -249,17 +269,6 @@ echo "========================================" > "$LOGFILE"
 echo " Starting Modern MaXX Session " >> "$LOGFILE"
 date >> "$LOGFILE"
 echo "========================================" >> "$LOGFILE"
-
-# Apply regional keyboard layout dynamically
-XKBLAYOUT=$(grep 'Option "XkbLayout"' /usr/local/etc/X11/xorg.conf.d/00-keyboard.conf 2>/dev/null | awk '{print $3}' | tr -d '"')
-XKBVARIANT=$(grep 'Option "XkbVariant"' /usr/local/etc/X11/xorg.conf.d/00-keyboard.conf 2>/dev/null | awk '{print $3}' | tr -d '"')
-if [ -n "$XKBLAYOUT" ]; then
-    if [ -n "$XKBVARIANT" ]; then
-        setxkbmap -layout "$XKBLAYOUT" -variant "$XKBVARIANT"
-    else
-        setxkbmap -layout "$XKBLAYOUT"
-    fi
-fi
 
 if command -v pipewire >/dev/null; then
     killall pipewire wireplumber 2>/dev/null
