@@ -43,14 +43,11 @@ Log out or restart the display manager. Select MaXX Interactive Desktop from the
 🐛 Known Fixes Applied (Script 2)
 
 The official MaXX installer struggles on FreeBSD. This script automatically fixes:
-
    Bypasses the broken arch dependency by downloading and extracting the .tar.gz manually.
-
    Creates the missing bin32 symlink required by Xsession.dt.
-
    Hooks MaXX's SGI Motif and Scheme libraries directly into the Linuxulator via ld.so.conf.d to prevent xset segfaults.
-
    Restores ROX-Filer visual fidelity by forcing GTK cache updates and setting XDG_DATA_DIRS.
+
 
 Created by msartor99 and Gemini
 
