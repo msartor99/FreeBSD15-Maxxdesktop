@@ -104,7 +104,7 @@ env ASSUME_ALWAYS_YES=YES pkg bootstrap -f
 env ASSUME_ALWAYS_YES=YES pkg update -f
 
 echo "[+] Installing X11 Display Server and Core utilities..."
-pkg install -y xorg xprop xorg-apps dbus sddm wget bash sudo unzip libzip git htop python3 bashtop smartmontools ImageMagick7 feh
+pkg install -y xorg xprop xorg-apps dbus sddm xfce xfce4-goodies wget bash sudo unzip libzip git htop python3 bashtop smartmontools ImageMagick7 feh
 
 echo "[+] Installing Toolchest Native Utilities..."
 pkg install -y xterm xscreensaver xkill xprop xwininfo gnome-system-monitor gnome-screenshot firefox thunderbird vlc xfe
