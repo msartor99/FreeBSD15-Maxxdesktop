@@ -26,7 +26,7 @@ Ces scripts s'occupent du travail complexe de liaison entre FreeBSD et le sous-s
 
 ### Step 1: Base System
 Run the first script as `root`. This will prepare your system and install the display manager.
-```bash
+
 doas ./install-base-xfce.sh
 
 Reboot your machine once the script finishes. You should be greeted by the SDDM login screen.
@@ -44,36 +44,21 @@ Log out or restart the display manager. Select MaXX Interactive Desktop from the
 
 The official MaXX installer struggles on FreeBSD. This script automatically fixes:
 
-    Bypasses the broken arch dependency by downloading and extracting the .tar.gz manually.
+   Bypasses the broken arch dependency by downloading and extracting the .tar.gz manually.
 
-    Creates the missing bin32 symlink required by Xsession.dt.
+   Creates the missing bin32 symlink required by Xsession.dt.
 
-    Hooks MaXX's SGI Motif and Scheme libraries directly into the Linuxulator via ld.so.conf.d to prevent xset segfaults.
+   Hooks MaXX's SGI Motif and Scheme libraries directly into the Linuxulator via ld.so.conf.d to prevent xset segfaults.
 
-    Restores ROX-Filer visual fidelity by forcing GTK cache updates and setting XDG_DATA_DIRS.
+   Restores ROX-Filer visual fidelity by forcing GTK cache updates and setting XDG_DATA_DIRS.
 
-Created by msartor99.
+Created by msartor99 and Gemini
 
-
-
-
-
-# FreeBSD15-Maxxdesktop
-
-Here is an installation script for Maxx Desktop Interactive on FreeBSD 15. This script was created with the help of Gemini AI, based on the original installation script for CentOS/Red Hat/Rocky Linux provided by Eric Masson. The work was long and difficult. The system installs linux-rl9 and all its dependencies, but this version is operational with some limitations.
-
-Here's how to download and run it.
-
-fetch -o install_maxx_desktop.sh https://raw.githubusercontent.com/msartor99/FreeBSD15-Maxxdesktop/main/install_maxx_desktop.sh && chmod +x install_maxx_desktop.sh && ./install_maxx_desktop.sh
-
-Many thanks again to Eric Masson for his work and all his efforts.
+have fun!
 
 
 
-Here is the link to the original web page.
 
-https://docs.maxxinteractive.com/
 
-Have fun!
 
 
