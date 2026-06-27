@@ -234,3 +234,23 @@ if [ -f "$IMG_DIR/sgi_desktop.jpg" ]; then
     /usr/local/bin/magick "$IMG_DIR/sgi_desktop.jpg" -resize 1920x1200^ -gravity center -extent 1920x1200 -alpha set -define png:color-type=6 "png32:$IMG_DIR/sgi_boot.png"
     if [ -f "$IMG_DIR/sgi_boot.png" ]; then
         sysrc -f /boot/loader.conf splash="/boot/images/sgi_boot.png"
+    fi
+    SDDM_BASE="/usr/local/share/sddm/themes"
+    if [ -d "$SDDM_BASE/maldives" ]; then
+        rm -rf "$SDDM_BASE/sgi_irix"
+        cp -R "$SDDM_BASE/maldives" "$SDDM_BASE/sgi_irix"
+        cp "$IMG_DIR/sgi_desktop.jpg" "$SDDM_BASE/sgi_irix/sgi_desktop.jpg"
+        sed -i '' "s|^background=.*|background=sgi_desktop.jpg|" "$SDDM_BASE/sgi_irix/theme.conf"
+        mkdir -p /usr/local/etc/sddm.conf.d
+        cat > /usr/local/etc/sddm.conf.d/10-theme.conf << 'EOF'
+[Theme]
+Current=sgi_irix
+EOF
+    fi
+fi
+
+echo "=========================================================="
+echo " Phase 1 Completed successfully!"
+echo " A critical reboot is required to activate the graphics engine."
+echo " Execute: 'reboot' and run Script 2 after logging back in."
+echo "=========================================================="
