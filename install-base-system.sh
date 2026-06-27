@@ -103,8 +103,9 @@ echo "[+] Syncing repository catalogs..."
 env ASSUME_ALWAYS_YES=YES pkg bootstrap -f
 env ASSUME_ALWAYS_YES=YES pkg update -f
 
-echo "[+] Installing X11 Display Server, XFCE, and Core utilities..."
-pkg install -y xorg xprop xorg-apps dbus htop sddm wget bash sudo unzip libzip git htop python3 bashtop smartmontools ImageMagick7 feh
+echo "[+] Installing X11 Display Server, XFCE, Linux Base, and Core utilities..."
+# Ajout de linux_base-rl9 ici pour préparer les librairies GPU
+pkg install -y xorg xprop xorg-apps dbus sddm wget bash sudo unzip libzip git htop python3 bashtop smartmontools ImageMagick7 feh linux_base-rl9
 pkg install -y xfce xfce4-goodies
 
 echo "[+] Installing Toolchest Native Utilities..."
@@ -132,9 +133,9 @@ case $GPU_CHOICE in
         esac
         echo "[+] Installing main NVIDIA driver..."
         pkg install -y "$NV_BASE"
-        echo "[+] Installing Linux compatibility libraries and tools (optional)..."
-        pkg install -y "$NV_LIN" 2>/dev/null || echo "Warning: $NV_LIN unavailable, skipping."
-        pkg install -y nvidia-xconfig 2>/dev/null || echo "Warning: nvidia-xconfig unavailable, skipping."
+        echo "[+] Installing Linux compatibility libraries and tools..."
+        # Le masque d'erreur silencieux est retiré, le paquet s'installe proprement grâce à linux_base
+        pkg install -y "$NV_LIN" nvidia-xconfig
         
         [ -f /usr/local/bin/nvidia-xconfig ] && nvidia-xconfig
         ;;
