@@ -13,7 +13,7 @@ These scripts handle the heavy lifting of bridging FreeBSD and Linux subsystems,
 Ces scripts s'occupent du travail complexe de liaison entre FreeBSD et le sous-système Linux (Linuxulator), corrigent les erreurs de chemins de l'installateur officiel, et configurent X11/Nvidia.
 
 ### Features
-* **Script 1 (`install-base-xfce.sh`)**: Base system configuration, X11, Nvidia Drivers, SDDM (NASA theme), XFCE4 fallback, Audio (Pipewire), Printing, and USB support.
+* **Script 1 (`install-base-system.sh`)**: Base system configuration, X11, Nvidia Drivers, SDDM (NASA theme), XFCE4 fallback, Audio (Pipewire), Printing, and USB support.
 * **Script 2 (`install-maxx-interactive.sh`)**: Direct download of MaXX, smart extraction via Linuxulator, library integration (`ldconfig`), missing utilities, and desktop icon restorations.
 
 ---
@@ -28,7 +28,7 @@ Ces scripts s'occupent du travail complexe de liaison entre FreeBSD et le sous-s
 ### Step 1: Base System
 Run the first script as `root`. This will prepare your system and install the display manager.
 
-doas ./install-base-xfce.sh
+doas ./install-base-system.sh
 
 Reboot your machine once the script finishes. You should be greeted by the SDDM login screen.
 Step 2: MaXX Environment
