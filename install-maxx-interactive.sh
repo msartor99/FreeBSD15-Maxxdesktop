@@ -137,6 +137,8 @@ export DISPLAY=:0
 export PATH="/usr/local/bin:/usr/bin:/bin"
 export GDK_BACKEND=x11
 export MOZ_ENABLE_WAYLAND=0
+export LANG=fr_FR.UTF-8
+export LC_ALL=fr_FR.UTF-8
 exec $2 "\$@"
 EOF
     chmod +x "$WD/$1"
@@ -187,7 +189,7 @@ for BIN_DIR in "$MAXX_HOST/bin" "$MAXX_HOST/bin32" "$MAXX_HOST/bin64"; do
     ln -sf "$WD/xkill" "$BIN_DIR/xkill"
     ln -sf "$WD/xkill" "$BIN_DIR/Xkill"
 
-    rm -f "$BIN_DIR/xterm"; ln -sf /usr/local/bin/xterm "$BIN_DIR/xterm"
+    rm -f "$BIN_DIR/xterm"; ln -sf "$WD/xterm" "$BIN_DIR/xterm"
     rm -f "$BIN_DIR/xprop"; ln -sf /usr/local/bin/xprop "$BIN_DIR/xprop"
     rm -f "$BIN_DIR/xwininfo"; ln -sf /usr/local/bin/xwininfo "$BIN_DIR/xwininfo"
     
@@ -251,7 +253,13 @@ cat << 'EOF' > /usr/local/bin/start-maxx.sh
 export MAXX_HOME=/opt/MaXX
 export PATH=$MAXX_HOME/bin:$MAXX_HOME/bin64:$PATH
 
-# Language configuration inherited cleanly via login class
+# 1. Activation indispensable de D-Bus (pour Firefox, le son et les langues)
+if [ -z "$DBUS_SESSION_BUS_ADDRESS" ]; then
+    eval $(dbus-launch --sh-syntax --exit-with-session)
+    export DBUS_SESSION_BUS_ADDRESS
+fi
+
+# 2. Forçage propre de l'environnement linguistique fr_FR
 export LANG=fr_FR.UTF-8
 export LC_ALL=fr_FR.UTF-8
 
