@@ -1,4 +1,10 @@
 # MaXX Interactive Desktop on FreeBSD 15 🚀
+
+# july 6 2026 : some adjustment
+
+correction : splash image size, refine start Linux program from MaXX
+
+
 # june 27 2026 : new version
 *The legendary IRIX / Silicon Graphics experience, resurrected on modern UNIX.*
 
