@@ -255,6 +255,9 @@ EOF
     fi
 fi
 
+sed -i '' 's/run_rc_script ${_rc_elem} ${_boot}/run_rc_script ${_rc_elem} ${_boot} > \/dev\/null/g' /etc/rc
+
+
 echo "=========================================================="
 echo " Phase 1 Completed successfully!"
 echo " A critical reboot is required to activate the graphics engine."
