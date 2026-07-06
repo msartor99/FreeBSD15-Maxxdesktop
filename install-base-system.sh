@@ -255,8 +255,14 @@ EOF
     fi
 fi
 
+
 sed -i '' 's/run_rc_script ${_rc_elem} ${_boot}/run_rc_script ${_rc_elem} ${_boot} > \/dev\/null/g' /etc/rc
 
+sysrc -f /boot/loader.conf beastie_disable="YES"
+sysrc -f /boot/loader.conf autoboot_delay="3"
+sysrc -f /boot/loader.conf boot_mute="YES"
+sysrc -f /boot/loader.conf boot_verbose="NO"
+sysrc rc_startmsgs="NO"
 
 echo "=========================================================="
 echo " Phase 1 Completed successfully!"
