@@ -37,7 +37,7 @@ echo "=========================================================="
 
 # --- 1. LINUX INTERPRETATION LAYER ---
 echo "[+] Extracting additional Linux compatibility decoders..."
-pkg install -y linux-rl9 linux-rl9-xorg-libs linux-rl9-gdk-pixbuf2 linux-rl9-librsvg2 linux-rl9-gtk2 pipewire wireplumber audio/freedesktop-sound-theme
+pkg install -y bash linux-rl9 linux-rl9-xorg-libs linux-rl9-gdk-pixbuf2 linux-rl9-librsvg2 linux-rl9-gtk2 pipewire wireplumber audio/freedesktop-sound-theme
 
 [ ! -e /bin/bash ] && ln -sf /usr/local/bin/bash /bin/bash
 
@@ -229,7 +229,7 @@ EOF
     cat << EOF > "$BIN_DIR/adminterm"
 #!/bin/sh
 [ -n "$XKBLAYOUT" ] && /usr/local/bin/setxkbmap $XKBLAYOUT ${XKBVARIANT:+-variant $XKBVARIANT}
-exec /usr/local/bin/xterm -name AdminShell -title "Admin Shell" -bg "#4d0000" -fg white -e sudo -i
+exec /usr/local/bin/xterm -name AdminShell -title "Admin Shell" -bg "#4d0000" -fg white -e su -
 EOF
 
     cat << EOF > "$BIN_DIR/xsensors"
@@ -305,7 +305,7 @@ echo "========================================" >> "$LOGFILE"
 
 if command -v pipewire >/dev/null; then
     killall pipewire wireplumber 2>/dev/null
-    sleep 1
+    sleep 2
     pipewire >> "$LOGFILE" 2>&1 &
     wireplumber >> "$LOGFILE" 2>&1 &
 fi
@@ -317,6 +317,7 @@ else
 fi
 
 if [ -d "$MAXX_HOME/share/fonts/X11/pcf" ]; then
+    mkfontdir "$MAXX_HOME/share/fonts/X11/pcf" >/dev/null 2>&1
     xset fp+ "$MAXX_HOME/share/fonts/X11/pcf" >> "$LOGFILE" 2>&1
     xset fp rehash >> "$LOGFILE" 2>&1
 fi
