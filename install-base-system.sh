@@ -156,9 +156,6 @@ sysrc -f /boot/loader.conf tmpfs_load="YES"
 sysrc -f /boot/loader.conf aio_load="YES"
 sysrc rc_startmsgs="NO"
 
-# Redirection silencieuse des scripts RC
-sed -i '' 's/run_rc_script ${_rc_elem} ${_boot}/run_rc_script ${_rc_elem} ${_boot} > \/dev\/null/g' /etc/rc
-
 add_sysctl() { grep -q "^$1" /etc/sysctl.conf || echo "$1=$2" >> /etc/sysctl.conf; sysctl $1=$2 >/dev/null 2>&1; }
 add_sysctl "kern.sched.preempt_thresh" "224"
 add_sysctl "kern.ipc.shm_allow_removed" "1"
@@ -240,6 +237,10 @@ Current=sgi_irix
 EOF
     fi
 fi
+
+
+sed -i '' 's/run_rc_script ${_rc_elem} ${_boot}/run_rc_script ${_rc_elem} ${_boot} > \/dev\/null/g' /etc/rc
+
 
 echo "=========================================================="
 echo " Phase 1 Completed successfully!"
