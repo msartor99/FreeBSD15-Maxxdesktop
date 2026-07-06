@@ -30,7 +30,8 @@ Ces scripts s'occupent du travail complexe de liaison entre FreeBSD et le sous-s
 * A fresh installation of **FreeBSD 15.0-RELEASE** (or newer).
 * An internet connection.
 * An NVIDIA graphics card (configured for the `470` driver in the script, easily modifiable).
-* my way to use the script, make install directly on the computer with a USB key, use second computer with WinXX to run putty and connect by ssh,
+* my way to use the script, make install directly on the computer with a USB key, run freebsd-update fetch install
+* use second computer with WinXX to run putty and connect by ssh,
 *  use winSCP to copy install script on the FreeBSD, a run by putty like sh install-base-system.sh and sh install-maxx-interactive.sh
 
 ### Step 1: Base System
