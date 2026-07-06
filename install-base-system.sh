@@ -106,6 +106,7 @@ env ASSUME_ALWAYS_YES=YES pkg update -f
 echo "[+] Installing X11 Display Server, XFCE, Linux Base, and Core utilities..."
 # Ajout de linux_base-rl9 ici pour préparer les librairies GPU
 pkg install -y xorg xprop xorg-apps dbus sddm wget bash sudo unzip libzip git htop python3 bashtop smartmontools ImageMagick7 feh linux_base-rl9
+pw groupmod video -m sddm
 pkg install -y xfce xfce4-goodies
 
 echo "[+] Installing Toolchest Native Utilities..."
