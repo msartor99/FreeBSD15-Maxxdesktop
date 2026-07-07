@@ -1,6 +1,6 @@
 #!/bin/sh
 # ==============================================================================
-# SCRIPT 1: install-base-system.sh (HP Z4 G4 / Quadro K5200 Edition)
+# SCRIPT 1: install-base-system.sh
 # TARGET OS: FreeBSD 15.0-RELEASE (or later)
 # AUTHOR: msartor99
 # PURPOSE: Core System Tuning, X11, Graphics, Localization & Boot Aesthetics
@@ -11,7 +11,7 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-BACKTITLE="MaXX Desktop SGI - FreeBSD 15 (HP Z4 G4 Edition)"
+BACKTITLE="MaXX Desktop SGI - FreeBSD 15 Workstation Installer"
 
 # --- AUTO-DETECT SYSTEM DEFAULTS ---
 SYS_KBD=$(sysrc -n keymap 2>/dev/null | grep -Eo '^[a-z]{2}' || echo "us")
@@ -28,7 +28,7 @@ case "$SYS_KBD" in
 esac
 
 # --- INTERACTIVE INTERFACE ---
-MSG_DISCLAIMER="LEGAL DISCLAIMER\n\nThis script deeply modifies your FreeBSD system configuration for the HP Z4 G4.\nIt is provided 'as is', without any warranty.\n\nDo you accept to proceed?"
+MSG_DISCLAIMER="LEGAL DISCLAIMER\n\nThis script deeply modifies your FreeBSD system configuration.\nIt is provided 'as is', without any warranty.\n\nDo you accept to proceed?"
 if ! bsddialog --backtitle "$BACKTITLE" --title "Warning" --yesno "$MSG_DISCLAIMER" 12 75; then
     clear; echo "Installation cancelled by user."; exit 1
 fi
@@ -65,7 +65,28 @@ while true; do
     else bsddialog --backtitle "$BACKTITLE" --title "Error" --msgbox "User '$TARGET_USER' does not exist. Please create the user first." 8 50; fi
 done
 
-# 4. Splash Screen Resolution Selection
+# 4. CPU Vendor Selection (Microcode)
+CPU_CHOICE=$(bsddialog --backtitle "$BACKTITLE" --title "CPU Microcode" --menu "Select your processor vendor:" 12 50 2 \
+    1 "AMD" \
+    2 "Intel" 3>&1 1>&2 2>&3)
+if [ $? -ne 0 ]; then clear; exit 1; fi
+
+# 5. GPU Detection
+GPU_CHOICE=$(bsddialog --backtitle "$BACKTITLE" --title "GPU Selection" --menu "Select your graphics card vendor:" 12 50 3 \
+    1 "AMD" \
+    2 "NVIDIA" \
+    3 "Intel" 3>&1 1>&2 2>&3)
+if [ $? -ne 0 ]; then clear; exit 1; fi
+
+if [ "$GPU_CHOICE" = "2" ]; then
+    NV_VER=$(bsddialog --backtitle "$BACKTITLE" --title "NVIDIA Driver Version" --menu "Select the NVIDIA driver branch:" 12 60 3 \
+        1 "Latest Production Driver" \
+        2 "Legacy 580 Series" \
+        3 "Legacy 470 Series (Kepler)" 3>&1 1>&2 2>&3)
+    if [ $? -ne 0 ]; then clear; exit 1; fi
+fi
+
+# 6. Splash Screen Resolution Selection
 SPLASH_RES=$(bsddialog --backtitle "$BACKTITLE" --title "Splash Screen Resolution" --default-item "2560x1440" --menu "Select your monitor's native resolution:" 15 60 4 \
     "1920x1080" "Full HD (16:9)" \
     "1920x1200" "WUXGA (16:10)" \
@@ -75,7 +96,7 @@ if [ $? -ne 0 ]; then SPLASH_RES="1920x1080"; fi
 
 clear
 echo "=========================================================="
-echo " Phase 1: Deploying Base Workstation Environment (HP Z4)"
+echo " Phase 1: Deploying Base Workstation Environment"
 echo "=========================================================="
 
 # --- 1. BOOTSTRAP PKG & SERVICES ---
@@ -110,23 +131,41 @@ Exec=/usr/local/bin/startxfce4
 Type=Application
 EOF
 
-# --- 1.5 HP Z4 G4 INTEL MICROCODE ---
-echo "[+] Installing and configuring Intel CPU firmware microcodes..."
-pkg install -y devcpu-data-intel
-sysrc -f /boot/loader.conf cpu_microcode_load="YES"
-sysrc -f /boot/loader.conf cpu_microcode_name="/boot/firmware/intel-ucode.bin"
+# --- 1.5 CPU MICROCODE ---
+echo "[+] Installing and configuring CPU firmware microcodes..."
+if [ "$CPU_CHOICE" = "1" ]; then
+    pkg install -y devcpu-data-amd
+    sysrc -f /boot/loader.conf cpu_microcode_load="YES"
+    sysrc -f /boot/loader.conf cpu_microcode_name="/boot/firmware/amd-ucode.bin"
+else
+    pkg install -y devcpu-data-intel
+    sysrc -f /boot/loader.conf cpu_microcode_load="YES"
+    sysrc -f /boot/loader.conf cpu_microcode_name="/boot/firmware/intel-ucode.bin"
+fi
 sysrc microcode_update_enable="YES"
 
-# --- 2. GPU HARDWARE CONFIGURATION (NVIDIA KEPLER K5200) ---
-echo "[+] Provisioning Graphics Stack for Quadro K5200 (Legacy 470)..."
-KMOD_DRIVER="nvidia-modeset"
-NV_BASE="nvidia-driver-470"
-NV_LIN="linux-nvidia-libs-470"
-
-pkg install -y "$NV_BASE"
-pkg install -y "$NV_LIN" nvidia-xconfig
-
-[ -f /usr/local/bin/nvidia-xconfig ] && nvidia-xconfig
+# --- 2. GPU HARDWARE CONFIGURATION ---
+echo "[+] Provisioning Graphics Stack..."
+case $GPU_CHOICE in
+    2)
+        KMOD_DRIVER="nvidia-modeset"
+        case $NV_VER in
+            2) NV_BASE="nvidia-driver-580"; NV_LIN="linux-nvidia-libs-580" ;;
+            3) NV_BASE="nvidia-driver-470"; NV_LIN="linux-nvidia-libs-470" ;;
+            *) NV_BASE="nvidia-driver"; NV_LIN="linux-nvidia-libs" ;;
+        esac
+        pkg install -y "$NV_BASE" "$NV_LIN" nvidia-xconfig
+        [ -f /usr/local/bin/nvidia-xconfig ] && nvidia-xconfig
+        ;;
+    3)
+        KMOD_DRIVER="i915kms"
+        pkg install -y drm-kmod libva-intel-driver
+        ;;
+    *)
+        KMOD_DRIVER="amdgpu"
+        pkg install -y drm-kmod
+        ;;
+esac
 
 CURRENT_KMODS=$(sysrc -n kld_list)
 case "$CURRENT_KMODS" in
@@ -155,6 +194,9 @@ sysrc -f /boot/loader.conf boot_verbose="NO"
 sysrc -f /boot/loader.conf tmpfs_load="YES"
 sysrc -f /boot/loader.conf aio_load="YES"
 sysrc rc_startmsgs="NO"
+
+# Redirection silencieuse des scripts RC
+sed -i '' 's/run_rc_script ${_rc_elem} ${_boot}/run_rc_script ${_rc_elem} ${_boot} > \/dev\/null/g' /etc/rc
 
 add_sysctl() { grep -q "^$1" /etc/sysctl.conf || echo "$1=$2" >> /etc/sysctl.conf; sysctl $1=$2 >/dev/null 2>&1; }
 add_sysctl "kern.sched.preempt_thresh" "224"
@@ -237,10 +279,6 @@ Current=sgi_irix
 EOF
     fi
 fi
-
-
-sed -i '' 's/run_rc_script ${_rc_elem} ${_boot}/run_rc_script ${_rc_elem} ${_boot} > \/dev\/null/g' /etc/rc
-
 
 echo "=========================================================="
 echo " Phase 1 Completed successfully!"
