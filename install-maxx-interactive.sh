@@ -3,7 +3,7 @@
 # SCRIPT 2: install-maxx-interactive.sh
 # TARGET OS: FreeBSD 15.0-RELEASE (or later)
 # AUTHOR: msartor99
-# PURPOSE: MaXX Installer & Essential System Wrappers
+# PURPOSE: MaXX Installer, System Hotfixes & Binary Hijacking Wrappers
 # ==============================================================================
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -123,12 +123,12 @@ chown -R "$TARGET_USER":"$TARGET_USER" "$USER_HOME/.icons"
 
 chroot /compat/linux /bin/sh -c "/usr/bin/gtk-update-icon-cache -f -t /usr/share/icons/MaXX" 2>/dev/null || true
 
-# --- 5. VITAL SYSTEM HIJACKING (Browser, Email & Power ONLY) ---
-echo "[+] Deploying vital system routing (Browsers and Power management)..."
+# --- 5. BINARY HIJACKING SYSTEM (WRAPPERS & POWER CODES) ---
+echo "[+] Deploying routing wrappers to replace dysfunctional entrypoints..."
 WD="$MAXX_HOST/bin/wrappers"
 mkdir -p "$WD"
 
-# Generic wrapper pour les apps modernes FreeBSD
+# Generic wrapper pour les apps modernes (avec forçage de la langue FR)
 create_wrapper() {
     cat > "$WD/$1" << EOF
 #!/usr/local/bin/bash
@@ -156,15 +156,92 @@ chmod +x "$WD/sys_reboot" "$WD/sys_poweroff"
 
 create_wrapper "firefox" "/usr/local/bin/firefox"
 create_wrapper "thunderbird" "/usr/local/bin/thunderbird"
+create_wrapper "pavucontrol" "/usr/local/bin/pavucontrol"
+create_wrapper "gnome-screenshot" "/usr/local/bin/gnome-screenshot -i"
+
+# Wrapper pour System Monitor (htop) - Thème SGI Vert foncé
+cat << 'EOF' > "$WD/sysinfo"
+#!/usr/local/bin/bash
+export DISPLAY=:0
+export PATH="/usr/local/bin:/usr/bin:/bin"
+exec /usr/local/bin/xterm -name "SysMonitor" -title "System Monitor" -bg "#003300" -fg white -e htop
+EOF
+chmod +x "$WD/sysinfo"
+
+# Wrapper robuste pour Memory Monitor (bashtop) - Thème SGI Bleu nuit
+cat << 'EOF' > "$WD/gmemusage"
+#!/usr/local/bin/bash
+export DISPLAY=:0
+export PATH="/usr/local/bin:/usr/bin:/bin"
+exec /usr/local/bin/xterm -name "MemMonitor" -title "Memory Monitor" -bg "#000033" -fg white -e bashtop
+EOF
+chmod +x "$WD/gmemusage"
+
+# Wrapper foolproof pour xkill (Force le DISPLAY et attend la fermeture du menu)
+cat << 'EOF' > "$WD/xkill"
+#!/usr/local/bin/bash
+export DISPLAY=:0
+export PATH="/usr/local/bin:/usr/bin:/bin"
+sleep 1
+exec /usr/local/bin/xkill
+EOF
+chmod +x "$WD/xkill"
+
+# Extraction de la configuration du clavier pour injection dynamique dans les terminaux
+XKBLAYOUT=$(grep 'Option "XkbLayout"' /usr/local/etc/X11/xorg.conf.d/00-keyboard.conf 2>/dev/null | awk '{print $3}' | tr -d '"')
+XKBVARIANT=$(grep 'Option "XkbVariant"' /usr/local/etc/X11/xorg.conf.d/00-keyboard.conf 2>/dev/null | awk '{print $3}' | tr -d '"')
 
 for BIN_DIR in "$MAXX_HOST/bin" "$MAXX_HOST/bin32" "$MAXX_HOST/bin64"; do
     [ ! -d "$BIN_DIR" ] && continue
     
-    # Modern Apps Links
+    # Basic App Links
     rm -f "$BIN_DIR/WEBBROWSER"; ln -sf "$WD/firefox" "$BIN_DIR/WEBBROWSER"
     rm -f "$BIN_DIR/EMAILCLIENT"; ln -sf "$WD/thunderbird" "$BIN_DIR/EMAILCLIENT"
     
-    # System Power Management (FreeBSD host specific)
+    # Native X11 Utilities Injection (with Xkill variations)
+    rm -f "$BIN_DIR/xkill" "$BIN_DIR/Xkill"
+    ln -sf "$WD/xkill" "$BIN_DIR/xkill"
+    ln -sf "$WD/xkill" "$BIN_DIR/Xkill"
+
+    rm -f "$BIN_DIR/xprop"; ln -sf /usr/local/bin/xprop "$BIN_DIR/xprop"
+    rm -f "$BIN_DIR/xwininfo"; ln -sf /usr/local/bin/xwininfo "$BIN_DIR/xwininfo"
+    
+    # Routage propre pour Memory Monitor
+    rm -f "$BIN_DIR/gmemusage"
+    ln -sf "$WD/gmemusage" "$BIN_DIR/gmemusage"
+    
+    # Routage propre pour System Monitor
+    rm -f "$BIN_DIR/tellsystem" "$BIN_DIR/gr_osview2" "$BIN_DIR/xosview2" "$BIN_DIR/xosview"
+    ln -sf "$WD/sysinfo" "$BIN_DIR/tellsystem"
+    ln -sf "$WD/sysinfo" "$BIN_DIR/gr_osview2"
+    ln -sf "$WD/sysinfo" "$BIN_DIR/xosview2"
+    ln -sf "$WD/sysinfo" "$BIN_DIR/xosview"
+    
+    # Direct Shell Script Wrappers with Keyboard Layout enforcement
+    cat << EOF > "$BIN_DIR/winterm"
+#!/bin/sh
+[ -n "$XKBLAYOUT" ] && /usr/local/bin/setxkbmap $XKBLAYOUT ${XKBVARIANT:+-variant $XKBVARIANT}
+exec /usr/local/bin/xterm -name UnixShell -title "Unix Shell" -sb -sl 1000
+EOF
+
+    cat << EOF > "$BIN_DIR/adminterm"
+#!/bin/sh
+[ -n "$XKBLAYOUT" ] && /usr/local/bin/setxkbmap $XKBLAYOUT ${XKBVARIANT:+-variant $XKBVARIANT}
+exec /usr/local/bin/xterm -name AdminShell -title "Admin Shell" -bg "#4d0000" -fg white -e su -
+EOF
+
+    cat << EOF > "$BIN_DIR/xsensors"
+#!/bin/sh
+[ -n "$XKBLAYOUT" ] && /usr/local/bin/setxkbmap $XKBLAYOUT ${XKBVARIANT:+-variant $XKBVARIANT}
+exec /usr/local/bin/xterm -title "System Monitor" -e htop
+EOF
+    chmod +x "$BIN_DIR/winterm" "$BIN_DIR/adminterm" "$BIN_DIR/xsensors"
+    
+    # Diagnostic Engine Bindings
+    rm -f "$BIN_DIR/msound"; ln -sf "$WD/pavucontrol" "$BIN_DIR/msound"
+    rm -f "$BIN_DIR/ScreenShot"; ln -sf "$WD/gnome-screenshot" "$BIN_DIR/ScreenShot"
+
+    # System Power Management
     rm -f "$BIN_DIR/reboot" "$BIN_DIR/maxx-reboot" "$BIN_DIR/Restart"
     ln -sf "$WD/sys_reboot" "$BIN_DIR/reboot"; ln -sf "$WD/sys_reboot" "$BIN_DIR/maxx-reboot"; ln -sf "$WD/sys_reboot" "$BIN_DIR/Restart"
     rm -f "$BIN_DIR/poweroff" "$BIN_DIR/maxx-poweroff" "$BIN_DIR/shutdown" "$BIN_DIR/halt" "$BIN_DIR/Shutdown"
@@ -172,11 +249,7 @@ for BIN_DIR in "$MAXX_HOST/bin" "$MAXX_HOST/bin32" "$MAXX_HOST/bin64"; do
     ln -sf "$WD/sys_poweroff" "$BIN_DIR/shutdown"; ln -sf "$WD/sys_poweroff" "$BIN_DIR/Shutdown"
 done
 
-# Extraction de la configuration du clavier pour injection dynamique
-XKBLAYOUT=$(grep 'Option "XkbLayout"' /usr/local/etc/X11/xorg.conf.d/00-keyboard.conf 2>/dev/null | awk '{print $3}' | tr -d '"')
-XKBVARIANT=$(grep 'Option "XkbVariant"' /usr/local/etc/X11/xorg.conf.d/00-keyboard.conf 2>/dev/null | awk '{print $3}' | tr -d '"')
-
-# Infiltration locale dans le wrapper global xterm pour sécuriser le layout du clavier Motif
+# Infiltration locale dans le wrapper global xterm pour couvrir ROX-Filer et appels annexes
 cat << EOF > "$WD/xterm"
 #!/bin/sh
 [ -n "$XKBLAYOUT" ] && /usr/local/bin/setxkbmap $XKBLAYOUT ${XKBVARIANT:+-variant $XKBVARIANT}
@@ -187,6 +260,23 @@ for BIN_DIR in "$MAXX_HOST/bin" "$MAXX_HOST/bin32" "$MAXX_HOST/bin64"; do
     [ ! -d "$BIN_DIR" ] && continue
     rm -f "$BIN_DIR/xterm"
     ln -sf "$WD/xterm" "$BIN_DIR/xterm"
+done
+
+# --- 5.5 BRIDGING NATIVE FREEBSD X11 APPS TO LINUXULATOR ---
+echo "[+] Bridging FreeBSD native X11 apps to Linux paths (xclock, xcalc, etc.)..."
+mkdir -p /compat/linux/usr/bin
+mkdir -p /compat/linux/usr/X11R6/bin
+
+# Liste des utilitaires SGI classiques souvent codés en dur dans les raccourcis
+X11_APPS="xclock xcalc xmag xlogo xeyes xfontsel glxgears glxinfo xdpyinfo xev xload editres bitmap"
+
+for app in $X11_APPS; do
+    if [ -x "/usr/local/bin/$app" ]; then
+        # Lien pour les raccourcis ciblant /usr/bin/
+        ln -sf "/usr/local/bin/$app" "/compat/linux/usr/bin/$app"
+        # Lien pour les vieux raccourcis SGI/IRIX ciblant /usr/X11R6/bin/
+        ln -sf "/usr/local/bin/$app" "/compat/linux/usr/X11R6/bin/$app"
+    fi
 done
 
 # --- 6. SECURE STARTUP ENGINE WITH CLEAN CHANNELS ---
