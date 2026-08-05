@@ -205,9 +205,11 @@ echo "[+] Tuning Kernel parameters and quiet startup sequence..."
 sysrc -f /boot/loader.conf -x beastie_disable 2>/dev/null || true
 sysrc -f /boot/loader.conf -x autoboot_delay 2>/dev/null || true
 
-sysrc -f /boot/loader.conf boot_mute="YES"
+# sysrc -f /boot/loader.conf boot_mute="YES"
 sysrc -f /boot/loader.conf boot_verbose="NO"
 sysrc -f /boot/loader.conf aio_load="YES"
+sysrc -f /boot/loader.conf autoboot_delay=3
+
 sysrc rc_startmsgs="NO"
 
 if ! grep -q " > /dev/null" /etc/rc; then
