@@ -2,7 +2,6 @@
 # ==============================================================================
 # SCRIPT 2: install-maxx-interactive.sh
 # TARGET OS: FreeBSD 15.0-RELEASE (or later)
-# AUTHOR: msartor99
 # PURPOSE: MaXX Installer, System Hotfixes & Binary Hijacking Wrappers
 # ==============================================================================
 
