@@ -1,6 +1,6 @@
 #!/bin/sh
 # ==============================================================================
-# SCRIPT 1: install-base-system.sh (CORRIGÉ POUR FREEBSD 15.1)
+# SCRIPT 1: install-base-system.sh (FINAL - FREEBSD 15.1)
 # TARGET OS: FreeBSD 15.1-RELEASE (or later)
 # PURPOSE: Core System Tuning, X11, Graphics, Localization & Boot Aesthetics
 # ==============================================================================
@@ -205,11 +205,9 @@ echo "[+] Tuning Kernel parameters and quiet startup sequence..."
 sysrc -f /boot/loader.conf -x beastie_disable 2>/dev/null || true
 sysrc -f /boot/loader.conf -x autoboot_delay 2>/dev/null || true
 
-# sysrc -f /boot/loader.conf boot_mute="YES"
+sysrc -f /boot/loader.conf boot_mute="YES"
 sysrc -f /boot/loader.conf boot_verbose="NO"
 sysrc -f /boot/loader.conf aio_load="YES"
-sysrc -f /boot/loader.conf autoboot_delay=3
-
 sysrc rc_startmsgs="NO"
 
 if ! grep -q " > /dev/null" /etc/rc; then
@@ -282,10 +280,19 @@ sysrc -f /boot/loader.conf -x splash_image 2>/dev/null || true
 sysrc -f /boot/loader.conf -x efi_max_resolution 2>/dev/null || true
 sed -i '' '/kern.vt.fb.default_mode/d' /boot/loader.conf 2>/dev/null || true
 
-if command -v magick >/dev/null 2>&1 && [ -f "$IMG_DIR/SGI_splash_src.jpg" ]; then
+# Identification stricte de l'exécutable ImageMagick (évite l'échec silencieux)
+if [ -x /usr/local/bin/magick ]; then
+    IM_CMD="/usr/local/bin/magick"
+elif [ -x /usr/local/bin/convert ]; then
+    IM_CMD="/usr/local/bin/convert"
+else
+    IM_CMD=""
+fi
+
+if [ -n "$IM_CMD" ] && [ -f "$IMG_DIR/SGI_splash_src.jpg" ]; then
     
     # 7.1 Splash Screen (généré une seule fois pour boot & shutdown)
-    magick "$IMG_DIR/SGI_splash_src.jpg" -resize ${SPLASH_RES}^ -gravity center -extent ${SPLASH_RES} -alpha set -define png:color-type=6 "png32:$IMG_DIR/SGI_splash.png"
+    $IM_CMD "$IMG_DIR/SGI_splash_src.jpg" -resize ${SPLASH_RES}^ -gravity center -extent ${SPLASH_RES} -alpha set -define png:color-type=6 "png32:$IMG_DIR/SGI_splash.png"
     
     # Configuration stricte pour FreeBSD 15.1
     sysrc -f /boot/loader.conf splash="/boot/images/SGI_splash.png"
