@@ -118,7 +118,7 @@ if ! pkg info -e sddm >/dev/null 2>&1; then
 fi
 
 echo "[+] 2/3 Installing Core Utilities and Subsystems..."
-pkg install -y wget bash sudo unzip libzip git htop python3 smartmontools feh linux_base-rl9 xterm xscreensaver xkill xwininfo gnome-system-monitor gnome-screenshot firefox thunderbird vlc xfe
+pkg install -y wget bash sudo unzip libzip git htop python3 smartmontools feh linux_base-rl9 xterm xscreensaver xkill xwininfo gnome-system-monitor gnome-screenshot firefox thunderbird vlc xfe libreoffice
 
 echo "[+] 3/3 Installing Variable Utilities..."
 pkg install -y ImageMagick7 || pkg install -y ImageMagick6 || true
