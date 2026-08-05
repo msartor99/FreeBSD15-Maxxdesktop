@@ -2,7 +2,6 @@
 # ==============================================================================
 # SCRIPT 1: install-base-system.sh
 # TARGET OS: FreeBSD 15.0-RELEASE (or later)
-# AUTHOR: msartor99
 # PURPOSE: Core System Tuning, X11, Graphics, Localization & Boot Aesthetics
 # ==============================================================================
 
