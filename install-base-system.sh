@@ -1,6 +1,6 @@
 #!/bin/sh
 # ==============================================================================
-# SCRIPT 1: install-base-system.sh
+# SCRIPT 1: install-base-system.sh (CORRIGÉ & SÉCURISÉ)
 # TARGET OS: FreeBSD 15.0-RELEASE (or later)
 # PURPOSE: Core System Tuning, X11, Graphics, Localization & Boot Aesthetics
 # ==============================================================================
@@ -32,7 +32,6 @@ if ! bsddialog --backtitle "$BACKTITLE" --title "Warning" --yesno "$MSG_DISCLAIM
     clear; echo "Installation cancelled by user."; exit 1
 fi
 
-# 1. Language Selection
 USER_LOCALE=$(bsddialog --backtitle "$BACKTITLE" --title "Language & Region" --default-item "$DEFAULT_LANG" --menu "Select your system language and region:" 15 60 8 \
     "en_US.UTF-8" "English (US)" \
     "en_GB.UTF-8" "English (UK)" \
@@ -42,7 +41,6 @@ USER_LOCALE=$(bsddialog --backtitle "$BACKTITLE" --title "Language & Region" --d
     "de_CH.UTF-8" "German (Switzerland)" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then clear; exit 1; fi
 
-# 2. Keyboard Selection
 X11_KBD=$(bsddialog --backtitle "$BACKTITLE" --title "Keyboard Layout" --default-item "$DEFAULT_X11_KBD" --menu "Select your X11 Keyboard Layout:" 15 60 8 \
     "us" "US English" \
     "fr" "French (AZERTY)" \
@@ -56,7 +54,6 @@ case "$X11_KBD" in
     *)   XKBLAYOUT="$X11_KBD"; XKBVARIANT="" ;;
 esac
 
-# 3. Target User Setup
 while true; do
     TARGET_USER=$(bsddialog --backtitle "$BACKTITLE" --title "Target User" --inputbox "Enter the target username (who will use MaXX):" 10 60 "administrateur" 3>&1 1>&2 2>&3)
     if [ $? -ne 0 ] || [ -z "$TARGET_USER" ]; then clear; exit 1; fi
@@ -64,13 +61,11 @@ while true; do
     else bsddialog --backtitle "$BACKTITLE" --title "Error" --msgbox "User '$TARGET_USER' does not exist. Please create the user first." 8 50; fi
 done
 
-# 4. CPU Vendor Selection (Microcode)
 CPU_CHOICE=$(bsddialog --backtitle "$BACKTITLE" --title "CPU Microcode" --menu "Select your processor vendor:" 12 50 2 \
     1 "AMD" \
     2 "Intel" 3>&1 1>&2 2>&3)
 if [ $? -ne 0 ]; then clear; exit 1; fi
 
-# 5. GPU Detection
 GPU_CHOICE=$(bsddialog --backtitle "$BACKTITLE" --title "GPU Selection" --menu "Select your graphics card vendor:" 12 50 3 \
     1 "AMD" \
     2 "NVIDIA" \
@@ -85,7 +80,6 @@ if [ "$GPU_CHOICE" = "2" ]; then
     if [ $? -ne 0 ]; then clear; exit 1; fi
 fi
 
-# 6. Splash Screen Resolution Selection
 SPLASH_RES=$(bsddialog --backtitle "$BACKTITLE" --title "Splash Screen Resolution" --default-item "2560x1440" --menu "Select your monitor's native resolution:" 15 60 4 \
     "1920x1080" "Full HD (16:9)" \
     "1920x1200" "WUXGA (16:10)" \
@@ -98,7 +92,6 @@ echo "=========================================================="
 echo " Phase 1: Deploying Base Workstation Environment"
 echo "=========================================================="
 
-# --- 1. BOOTSTRAP PKG & SERVICES ---
 echo "[+] Enabling system daemons..."
 sysrc dbus_enable="YES"
 sysrc sddm_enable="YES"
@@ -110,15 +103,36 @@ echo "[+] Syncing repository catalogs..."
 env ASSUME_ALWAYS_YES=YES pkg bootstrap -f
 env ASSUME_ALWAYS_YES=YES pkg update -f
 
-echo "[+] Installing X11 Display Server, XFCE, Linux Base, and Core utilities..."
-pkg install -y xorg xprop xorg-apps dbus sddm wget bash sudo unzip libzip git htop python3 bashtop smartmontools ImageMagick7 feh linux_base-rl9
-pkg install -y xfce xfce4-goodies
+# --- SÉCURITÉ TOUT-OU-RIEN : ISOLEMENT DES PAQUETS CRITIQUES ---
+echo "[+] 1/3 Installing X11 Core and SDDM (Critical)..."
+pkg install -y xorg xprop xorg-apps dbus sddm xfce xfce4-goodies
 
-echo "[+] Granting video node access to SDDM (Critical for FreeBSD 15)..."
+# COUPE-CIRCUIT : Vérification absolue de la présence de SDDM
+if ! pkg info -e sddm >/dev/null 2>&1; then
+    echo ""
+    echo "====================================================================="
+    echo "CRITICAL ERROR: Xorg or SDDM failed to install."
+    echo "The package manager encountered an error with the repository."
+    echo "Script aborted to prevent unbootable black screen."
+    echo "Please check your network or run 'pkg install sddm' manually."
+    echo "====================================================================="
+    exit 1
+fi
+
+echo "[+] 2/3 Installing Core Utilities and Subsystems..."
+pkg install -y wget bash sudo unzip libzip git htop python3 smartmontools feh linux_base-rl9 xterm xscreensaver xkill xwininfo gnome-system-monitor gnome-screenshot firefox thunderbird vlc xfe
+
+echo "[+] 3/3 Installing Variable Utilities (Ignoring isolated failures)..."
+# Tolérance d'erreur pour les paquets qui changent de nom selon les versions
+pkg install -y ImageMagick7 || pkg install -y ImageMagick6 || true
+pkg install -y bashtop || pkg install -y btop || true
+
+echo "[+] Granting video node access to SDDM and target user..."
 pw groupmod video -m sddm
-
-echo "[+] Installing Toolchest Native Utilities..."
-pkg install -y xterm xscreensaver xkill xprop xwininfo gnome-system-monitor gnome-screenshot firefox thunderbird vlc xfe
+# Configuration explicite des droits historiques pour l'administration et l'affichage de l'utilisateur
+pw groupmod video -m "$TARGET_USER"
+pw groupmod operator -m "$TARGET_USER"
+pw groupmod wheel -m "$TARGET_USER"
 
 echo "[+] Forcing XFCE Registration for SDDM..."
 mkdir -p /usr/local/share/xsessions
@@ -185,16 +199,13 @@ mount -a 2>/dev/null
 
 # --- 4. KERNEL TUNING & SILENT BOOT ---
 echo "[+] Tuning Kernel parameters and quiet startup sequence..."
-# Silence absolu au démarrage
 sysrc -f /boot/loader.conf beastie_disable="YES"
 sysrc -f /boot/loader.conf autoboot_delay="-1"
 sysrc -f /boot/loader.conf boot_mute="YES"
 sysrc -f /boot/loader.conf boot_verbose="NO"
-sysrc -f /boot/loader.conf tmpfs_load="YES"
 sysrc -f /boot/loader.conf aio_load="YES"
 sysrc rc_startmsgs="NO"
 
-# Redirection silencieuse des scripts RC
 sed -i '' 's/run_rc_script ${_rc_elem} ${_boot}/run_rc_script ${_rc_elem} ${_boot} > \/dev\/null/g' /etc/rc
 
 add_sysctl() { grep -q "^$1" /etc/sysctl.conf || echo "$1=$2" >> /etc/sysctl.conf; sysctl $1=$2 >/dev/null 2>&1; }
@@ -242,29 +253,37 @@ printf "%s|Custom User Class:\n\t:charset=UTF-8:\n\t:lang=%s:\n\t:tc=default:\n"
 cap_mkdb /etc/login.conf
 echo "defaultclass=$CLASS_NAME" > /etc/adduser.conf
 
-pw usermod "$TARGET_USER" -G wheel,operator,video -L "$CLASS_NAME" 2>/dev/null
+pw usermod "$TARGET_USER" -L "$CLASS_NAME" 2>/dev/null
 
 # --- 7. SGI VISUAL THEME INTEGRATION ---
 echo "[+] Deploying SGI Retro Aesthetics (Splash screen and SDDM)..."
 IMG_DIR="/boot/images"
 mkdir -p "$IMG_DIR"
+
 SGI_WALLPAPER_URL="https://raw.githubusercontent.com/msartor99/FreeBSD15-Maxxdesktop/main/sgi_desktop.jpg"
 SGI_MENU_LOGO_URL="https://raw.githubusercontent.com/msartor99/FreeBSD15-Maxxdesktop/main/sgilogo.png"
+SGI_SPLASH_URL="https://raw.githubusercontent.com/msartor99/FreeBSD15-Maxxdesktop/6b45de20a204400a752f1e67611a4516fdd17748/SGI_splash.jpg"
 
+# 7.1 Logo du menu de boot (Remplace la marque ET le petit démon Beastie)
 wget -q -O "$IMG_DIR/sgi_menu_src.png" "$SGI_MENU_LOGO_URL" 2>/dev/null
 if [ -f "$IMG_DIR/sgi_menu_src.png" ]; then
     cp "$IMG_DIR/sgi_menu_src.png" "/boot/images/freebsd-brand-rev.png"
     cp "$IMG_DIR/sgi_menu_src.png" "/boot/images/freebsd-brand.png"
+    cp "$IMG_DIR/sgi_menu_src.png" "/boot/images/freebsd-logo-rev.png"
+    cp "$IMG_DIR/sgi_menu_src.png" "/boot/images/freebsd-logo.png"
 fi
 
+# 7.2 Image de Splash Screen (avec redimensionnement interactif ImageMagick)
+wget -q -O "$IMG_DIR/sgi_splash_src.jpg" "$SGI_SPLASH_URL" 2>/dev/null
+if command -v magick >/dev/null 2>&1 && [ -f "$IMG_DIR/sgi_splash_src.jpg" ]; then
+    # Découpage dynamique centré selon la variable $SPLASH_RES choisie par l'opérateur
+    magick "$IMG_DIR/sgi_splash_src.jpg" -resize ${SPLASH_RES}^ -gravity center -extent ${SPLASH_RES} -alpha set -define png:color-type=6 "png32:$IMG_DIR/sgi_boot.png"
+    sysrc -f /boot/loader.conf splash="/boot/images/sgi_boot.png"
+fi
+
+# 7.3 Image de fond pour SDDM
 wget -q -O "$IMG_DIR/sgi_desktop.jpg" "$SGI_WALLPAPER_URL" 2>/dev/null
 if [ -f "$IMG_DIR/sgi_desktop.jpg" ]; then
-    # Resizing dynamique basé sur le choix de l'utilisateur
-    /usr/local/bin/magick "$IMG_DIR/sgi_desktop.jpg" -resize ${SPLASH_RES}^ -gravity center -extent ${SPLASH_RES} -alpha set -define png:color-type=6 "png32:$IMG_DIR/sgi_boot.png"
-    
-    # SPLASH SCREEN RE-ENABLED
-    sysrc -f /boot/loader.conf splash="/boot/images/sgi_boot.png"
-    
     SDDM_BASE="/usr/local/share/sddm/themes"
     if [ -d "$SDDM_BASE/maldives" ]; then
         rm -rf "$SDDM_BASE/sgi_irix"
