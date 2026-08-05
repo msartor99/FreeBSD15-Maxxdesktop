@@ -15,6 +15,8 @@ fetch https://raw.githubusercontent.com/msartor99/FreeBSD15-Maxxdesktop/main/ins
 
 chmod +x install-maxx-interactive.sh
 
+Then run both scripts
+
 
 # july 6 2026 : some adjustment
 
