@@ -143,11 +143,11 @@ EOF
 # --- 1.5 CPU MICROCODE ---
 echo "[+] Installing CPU microcodes..."
 if [ "$CPU_CHOICE" = "1" ]; then
-    pkg install -y devcpu-data-amd
+    pkg install -y cpu-microcode-amd
     sysrc -f /boot/loader.conf cpu_microcode_load="YES"
     sysrc -f /boot/loader.conf cpu_microcode_name="/boot/firmware/amd-ucode.bin"
 else
-    pkg install -y devcpu-data-intel
+    pkg install -y cpu-microcode-intel
     sysrc -f /boot/loader.conf cpu_microcode_load="YES"
     sysrc -f /boot/loader.conf cpu_microcode_name="/boot/firmware/intel-ucode.bin"
 fi
