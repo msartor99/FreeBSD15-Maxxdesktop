@@ -1,5 +1,17 @@
 # MaXX Interactive Desktop on FreeBSD 15 🚀
 
+
+# august 5 new version
+
+# Download and prepare Script 1 ( Base Configuration for FreeBSD)
+fetch https://raw.githubusercontent.com/msartor99/FreeBSD15-Maxxdesktop/main/install-base-system.sh
+chmod +x install-base-system.sh
+
+# Download and prepare Script 2 ( Install MaXX interactive Desktop for FreeBSD)
+fetch https://raw.githubusercontent.com/msartor99/FreeBSD15-Maxxdesktop/main/install-maxx-interactive.sh
+chmod +x install-maxx-interactive.sh
+
+
 # july 6 2026 : some adjustment
 
 correction : splash image size, refine start Linux program from MaXX
