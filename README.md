@@ -1,17 +1,19 @@
 SGI IRIX Workstation (MaXX Interactive Desktop) on FreeBSD 15.1-RELEASE
 ![OS](https://img.shields.io/badge/OS-FreeBSD_15.1--RELEASE-AB2B28?style=for-the-badge&logo=freebsd&logoColor=white)
-![Desktop](https://img.shields.io/badge/Desktop-MaXX_Interactive_(SGI_5Dwm)-334c66?style=for-the-badge)
-![GPU](https://img.shields.io/badge/GPU-NVIDIA_Quadro_M4000_(470)-76B900?style=for-the-badge&logo=nvidia&logoColor=white)
+![Desktop](https://img.shields.io/badge/Desktop-MaXX_Octane_2.2.0_(SGI_5Dwm)-334c66?style=for-the-badge)
+![GPU](https://img.shields.io/badge/GPU-NVIDIA_Quadro_M4000_(Driver_470)-76B900?style=for-the-badge&logo=nvidia&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
 This repository contains idempotent automation scripts designed to transform an HP Z4 G4 workstation running FreeBSD 15.1-RELEASE into a modern Silicon Graphics (SGI) IRIX workstation, powered by MaXX Interactive Desktop (Octane 2.2.0).
 The entire setup—from a fresh base OS installation to a fully hardware-accelerated SGI desktop environment—deploys in under 15 minutes.
 ---
 Visual Preview & Screenshots
+Live MaXX Interactive Desktop Session (`2560x1440`)
+![MaXX Interactive Desktop in Action](myfirstdesktop.jpg)
+Live SGI IRIX `5Dwm` session running on FreeBSD 15.1-RELEASE (HP Z4 G4 / Quadro M4000 / ASUS PB278)
+Boot & Login Artwork
 UEFI Boot & Shutdown Splash	SDDM Login (`sgi_irix` Theme)
 ![SGI Boot Splash](SGI_splash.jpg)	![SGI Desktop Wallpaper](sgi_desktop.jpg)
 1920x1080 32-bit RGBA Framebuffer Splash	QHD 2560x1440 SGI Login & Desktop Background
-> **Tip:** Once you take a screenshot inside your live MaXX session (using the `screenshot` utility from the Toolchest), save it as `maxx_session.png` in the repository root and uncomment or add it below:
-> `<!-- ![Live MaXX Interactive Desktop Session](maxx_session.png) -->`
 ---
 Reference Hardware Configuration
 These scripts have been calibrated, tested, and validated on the following hardware architecture:
@@ -40,6 +42,7 @@ Repository Structure
 File	Description
 `install-base.sh`	Phase 1: Sets up `sudo`, `sshd` root access, silent UEFI boot, SGI boot/shutdown splash screens, Intel microcode, `linux-rl9`, CUPS/USB rules, PipeWire audio, NVIDIA 470 stack, XFCE fallback desktop, and SDDM with the custom `sgi_irix` theme.
 `install-maxx-interactive.sh`	Phase 2: Installs X11/Motif fonts, configures Linuxulator `ncurses5` symlinks, downloads/extracts MaXX Desktop Octane 2.2.0, brands ELF binaries, sets up the classic `redSGI` cursor, deploys FreeBSD Toolchest wrappers, and registers the SDDM session.
+`myfirstdesktop.jpg`	Live screenshot of the HP Z4 G4 workstation running MaXX Interactive Desktop (`5Dwm`) on FreeBSD 15.1-RELEASE.
 `sgi_desktop.jpg`	High-resolution SGI IRIX wallpaper used for both the SDDM login screen and the MaXX desktop background.
 `SGI_splash.jpg`	Silicon Graphics logo used to generate the 32-bit RGBA UEFI boot and shutdown splash screen.
 ---
@@ -71,7 +74,6 @@ Once completed, select "MaXX Interactive Desktop" from the SDDM session menu at 
 Credits & Acknowledgments
 MaXX Interactive Desktop by Eric Masson and the MaXX team for preserving and modernizing the SGI IRIX `5Dwm` and Indigo Magic Desktop experience.
 The FreeBSD Project for the rock-solid 15.1-RELEASE kernel and Linuxulator compatibility layer.
----
 License
 The installation scripts and configuration wrappers in this repository are released under the MIT License.
 Silicon Graphics, IRIX, Indigo Magic, and the SGI cube logo are registered trademarks of their respective owners. MaXX Interactive Desktop binaries are subject to their own respective license terms.
