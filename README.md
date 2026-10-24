@@ -1,6 +1,17 @@
 SGI IRIX Workstation (MaXX Interactive Desktop) on FreeBSD 15.1-RELEASE
+![OS](https://img.shields.io/badge/OS-FreeBSD_15.1--RELEASE-AB2B28?style=for-the-badge&logo=freebsd&logoColor=white)
+![Desktop](https://img.shields.io/badge/Desktop-MaXX_Interactive_(SGI_5Dwm)-334c66?style=for-the-badge)
+![GPU](https://img.shields.io/badge/GPU-NVIDIA_Quadro_M4000_(470)-76B900?style=for-the-badge&logo=nvidia&logoColor=white)
+![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
 This repository contains idempotent automation scripts designed to transform an HP Z4 G4 workstation running FreeBSD 15.1-RELEASE into a modern Silicon Graphics (SGI) IRIX workstation, powered by MaXX Interactive Desktop (Octane 2.2.0).
 The entire setup—from a fresh base OS installation to a fully hardware-accelerated SGI desktop environment—deploys in under 15 minutes.
+---
+Visual Preview & Screenshots
+UEFI Boot & Shutdown Splash	SDDM Login (`sgi_irix` Theme)
+![SGI Boot Splash](SGI_splash.jpg)	![SGI Desktop Wallpaper](sgi_desktop.jpg)
+1920x1080 32-bit RGBA Framebuffer Splash	QHD 2560x1440 SGI Login & Desktop Background
+> **Tip:** Once you take a screenshot inside your live MaXX session (using the `screenshot` utility from the Toolchest), save it as `maxx_session.png` in the repository root and uncomment or add it below:
+> `<!-- ![Live MaXX Interactive Desktop Session](maxx_session.png) -->`
 ---
 Reference Hardware Configuration
 These scripts have been calibrated, tested, and validated on the following hardware architecture:
@@ -17,7 +28,7 @@ Strict 470 Driver Branch (`nvidia-driver-470`): While newer branches (such as 58
 No `nvidia-drm-kmod`: On FreeBSD 15.1, the LinuxKPI DRM wrapper (`nvidia-drm-kmod`) can trigger a kernel page fault (`trap_pfault`) as soon as SDDM probes `/dev/dri/renderD128`. Since MaXX Interactive Desktop and XFCE are pure X11 environments, Xorg communicates directly with the GPU via `nvidia.ko` and `nvidia-modeset.ko` (`nvidia-kmod-470`), ensuring 100% stability without DRM overhead.
 QHD Resolution Lock (`2560x1440`): Configured `/usr/local/etc/X11/xorg.conf.d/10-nvidia.conf` with `NoMaxResolutionCheck` and explicit `MetaModes` to prevent the driver from defaulting to unsupported 4K timings on the 27" ASUS monitor.
 2. UEFI Framebuffer & SGI Boot/Shutdown Splash Screen
-Diagonal/Skewed Image Fix: Although the console framebuffer runs at `2560x1440` (`efi_max_resolution="1440p"`), the HP Z4 G4 UEFI Gop/vt splash renderer expects a strict `1920x1080` stride during early boot.
+Diagonal/Skewed Image Fix: Although the console framebuffer runs at `2560x1440` (`efi_max_resolution="1440p"`), the HP Z4 G4 UEFI GOP/vt splash renderer expects a strict `1920x1080` stride during early boot.
 Automated ImageMagick Pipeline: The base script automatically fetches the SGI boot artwork and converts it into a 32-bit RGBA PNG (`png32:`) scaled to `1920x1080`, enabling both boot (`splash=`) and poweroff (`shutdown_splash=`) visual screens alongside silent boot (`boot_mute="YES"`).
 3. Linuxulator (Rocky Linux 9) & MaXX Octane 2.2.0 Tuning
 ELF Binary Branding: Automatically identifies and brands (`brandelf -t Linux`) all true 64-bit ELF binaries inside `/compat/linux/opt/MaXX` without corrupting shell or Perl scripts.
@@ -38,9 +49,9 @@ Perform a fresh installation of FreeBSD 15.1-RELEASE (UEFI mode, ZFS or UFS).
 Create a standard user named `administrateur` and add it to the `wheel`, `operator`, and `video` groups.
 Log in as `root` and update the base system before running the scripts:
 ```sh
-   freebsd-update fetch install
-   reboot
-   ```
+freebsd-update fetch install
+reboot
+```
 Phase 1: Base System, NVIDIA 470 & SDDM Setup
 Run the first script as `root`:
 ```sh
@@ -60,3 +71,7 @@ Once completed, select "MaXX Interactive Desktop" from the SDDM session menu at 
 Credits & Acknowledgments
 MaXX Interactive Desktop by Eric Masson and the MaXX team for preserving and modernizing the SGI IRIX `5Dwm` and Indigo Magic Desktop experience.
 The FreeBSD Project for the rock-solid 15.1-RELEASE kernel and Linuxulator compatibility layer.
+---
+License
+The installation scripts and configuration wrappers in this repository are released under the MIT License.
+Silicon Graphics, IRIX, Indigo Magic, and the SGI cube logo are registered trademarks of their respective owners. MaXX Interactive Desktop binaries are subject to their own respective license terms.
