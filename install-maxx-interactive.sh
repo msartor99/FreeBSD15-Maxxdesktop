@@ -23,7 +23,7 @@ GITHUB_RAW="https://raw.githubusercontent.com/msartor99/FreeBSD-Maxxdesktop/main
 echo "=== Phase 2 : Installation et Calibration Integrale de MaXX Interactive Desktop ==="
 
 # ------------------------------------------------------------------------------
-# 1. INSTALLATION DES POLICES X11/MOTIF, APPLICATIONS, SONDES MATERIELLES & LINUXULATOR
+# 1. INSTALLATION DES POLICES X11/MOTIF, APPLICATIONS, CUPS, OCTOPKG & LINUXULATOR
 # ------------------------------------------------------------------------------
 echo "-> [1/11] Verification des polices X11/SGI, outils materiels et Linuxulator..."
 pkg install -y \
@@ -31,11 +31,23 @@ pkg install -y \
     font-bh-lucidatypewriter-75dpi font-bh-lucidatypewriter-100dpi \
     font-adobe-75dpi font-adobe-100dpi font-ibm-type1 font-dec-misc \
     font-sun-misc font-cursor-misc dejavu noto-basic \
-    tradcpp xrdb xset xsetroot xprop xwininfo xkill setxkbmap xclock \
+    tradcpp xrdb xset xsetroot xprop xwininfo xkill setxkbmap xhost xclock xfontsel xcalc \
     mkfontscale mkfontdir feh dunst alttab scrot xterm wget curl ImageMagick7 \
     mesa-demos nvidia-settings dmidecode pciutils usbutils \
     firefox thunderbird vlc pavucontrol dsbmixer ristretto mousepad thunar \
     btop shared-mime-info 2>/dev/null || true
+
+# Installation individuelle des applications bureautiques, graphiques et systeme du Toolchest
+for pkg_app in \
+    xpdf atril-lite gimp inkscape dia libreoffice \
+    galculator gucharmap catfish gnome-screenshot \
+    xfce4-screenshooter-plugin filezilla \
+    octopkg system-config-printer cups cups-filters; do
+    pkg install -y "$pkg_app" 2>/dev/null || true
+done
+
+sysrc cupsd_enable="YES"
+service cupsd start 2>/dev/null || true
 
 sysrc linux_enable="YES"
 sysrc linux_mounts_enable="YES"
@@ -65,11 +77,13 @@ for lpkg in \
 done
 
 # ------------------------------------------------------------------------------
-# 2. UNIFICATION DE /TMP ET LIENS DE COMPATIBILITE LINUXULATOR (NCURSES V5)
+# 2. UNIFICATION DE /TMP, /USR/TMP ET LIENS DE COMPATIBILITE LINUXULATOR (NCURSES V5)
 # ------------------------------------------------------------------------------
-echo "-> [2/11] Unification de /compat/linux/tmp -> /tmp et bibliotheques Linuxulator..."
-rm -rf /compat/linux/tmp
+echo "-> [2/11] Unification de /compat/linux/tmp, /usr/tmp -> /tmp et bibliotheques Linuxulator..."
+rm -rf /compat/linux/tmp /compat/linux/usr/tmp /usr/tmp
 ln -s /tmp /compat/linux/tmp
+ln -s /tmp /compat/linux/usr/tmp
+ln -s /tmp /usr/tmp
 chmod 1777 /tmp
 ln -sf /usr/local /compat/linux/usr/local
 
@@ -209,7 +223,7 @@ ln -sf /usr/local/bin/tradcpp /compat/linux/lib/cpp
 ln -sf /usr/local/bin/tradcpp /compat/linux/usr/bin/cpp
 ln -sf /usr/local/bin/tradcpp /compat/linux/bin/cpp
 
-for xtool in xrdb xset xsetroot xprop xwininfo xkill setxkbmap xclock feh; do
+for xtool in xrdb xset xsetroot xprop xwininfo xkill setxkbmap xhost feh; do
     rm -f "/compat/linux/usr/bin/$xtool" "/compat/linux/bin/$xtool"
     if [ -x "/usr/local/bin/$xtool" ]; then
         ln -sf "/usr/local/bin/$xtool" "/compat/linux/usr/bin/$xtool"
@@ -228,6 +242,13 @@ ln -sf /usr/local/sbin/lsusb       /compat/linux/usr/bin/lsusb
 ln -sf /compat/linux/opt/MaXX/bin64/xosview2 /xosview2
 ln -sf /compat/linux/opt/MaXX/bin64/xconfirm /xconfirm
 
+for mbin in background iconcatalog fm; do
+    if [ -x "/compat/linux/opt/MaXX/bin64/$mbin" ]; then
+        ln -sf "/compat/linux/opt/MaXX/bin64/$mbin" "/$mbin"
+        ln -sf "/compat/linux/opt/MaXX/bin64/$mbin" "/usr/local/bin/$mbin"
+    fi
+done
+
 mkdir -p /compat/linux/usr/share/fonts
 ln -sf /usr/local/share/fonts/dejavu /compat/linux/usr/share/fonts/dejavu
 ln -sf /usr/local/share/fonts/noto   /compat/linux/usr/share/fonts/noto
@@ -241,9 +262,9 @@ if [ -d /compat/linux/opt/MaXX/share/fonts ]; then
 fi
 
 # ------------------------------------------------------------------------------
-# 8. THEME CURSEUR SGI ROUGE (redSGI), THEMES GTK ET COMPILATION INDIGOMAGIC
+# 8. THEME CURSEUR SGI ROUGE (redSGI), PRE-COMPILATION SCHEME BASE & INDIGOMAGIC
 # ------------------------------------------------------------------------------
-echo "-> [8/11] Installation du curseur SGI (redSGI), themes GTK et palette IndigoMagic..."
+echo "-> [8/11] Installation du curseur SGI (redSGI), themes GTK et pre-compilation IndigoMagic..."
 mkdir -p /usr/local/share/icons /usr/local/share/icons/default /usr/local/share/themes
 mkdir -p /compat/linux/usr/share/icons /compat/linux/usr/share/themes
 
@@ -260,6 +281,25 @@ printf "[Icon Theme]\nName=Default\nComment=Default SGI Cursor Theme\nInherits=r
 
 sed -i '' 's/\*darkScheme:.*/\*darkScheme: FALSE/g' /compat/linux/opt/MaXX/etc/Xdefaults.d/* "${USER_HOME}/.maxxdesktop/Xdefaults.d/"* 2>/dev/null || true
 
+# Pre-compilation directe de /opt/MaXX/share/X11/schemes/Base/Base pour ViewKit / Motif (ImdDesktopPref)
+if [ ! -f /compat/linux/opt/MaXX/share/X11/schemes/Base/Base.orig ]; then
+    cp -af /compat/linux/opt/MaXX/share/X11/schemes/Base/Base \
+           /compat/linux/opt/MaXX/share/X11/schemes/Base/Base.orig
+fi
+
+cat > /tmp/compile_base.xrm << 'EOF'
+#define GAMMA_1_7
+#define USE_COLORS
+#define USE_SPACING
+#define USE_FONTS
+#include "/opt/MaXX/share/X11/schemes/Base/FontPalette"
+#include "/opt/MaXX/share/X11/schemes/IndigoMagic/BaseColorPalette"
+#include "/opt/MaXX/share/X11/schemes/Base/Base.orig"
+EOF
+/usr/local/bin/tradcpp -P /tmp/compile_base.xrm > /compat/linux/opt/MaXX/share/X11/schemes/Base/Base 2>/dev/null || true
+rm -f /tmp/compile_base.xrm
+
+# Compilation du fichier global SgiIndigoMagic.ad
 mkdir -p /compat/linux/opt/MaXX/share/X11/app-defaults
 cat > /tmp/build_sgi_theme.xrm << 'EOF'
 #define GAMMA_1_7
@@ -268,7 +308,7 @@ cat > /tmp/build_sgi_theme.xrm << 'EOF'
 #define USE_FONTS
 #include "/opt/MaXX/share/X11/schemes/Base/FontPalette"
 #include "/opt/MaXX/share/X11/schemes/IndigoMagic/BaseColorPalette"
-#include "/opt/MaXX/share/X11/schemes/Base/Base"
+#include "/opt/MaXX/share/X11/schemes/Base/Base.orig"
 #include "/opt/MaXX/etc/Xdefaults.d/Xdefaults.init"
 #include "/opt/MaXX/etc/Xdefaults.d/Xdefaults.classic"
 #include "/opt/MaXX/etc/Xdefaults.d/Xdefaults.bitmapFont"
@@ -364,32 +404,191 @@ Toolchest*fontList: -*-helvetica-bold-o-normal-*-14-*-*-*-*-*-iso8859-1
 EOF
 
 # ------------------------------------------------------------------------------
-# 9. OUTILS SYSTEME SGI D'ORIGINE (XCONFIRM, HINV, GR_OSVIEW2, WINTERM, ADMINTERM)
+# 9. OUTILS SYSTEME SGI D'ORIGINE & WRAPPERS APPLICATIONS NATIVES FREEBSD
 # ------------------------------------------------------------------------------
-echo "-> [9/11] Configuration des outils SGI (tellsystem, tellversion, tellgpu, gr_osview2, winterm, adminterm)..."
+echo "-> [9/11] Configuration des outils SGI et des wrappers d'applications FreeBSD..."
+
+# Wrappers d'elevation de privileges sans mot de passe pour OctoPkg (qt-sudo / gksu)
+for su_gui in qt-sudo gksu gksudo kdesu pkexec; do
+    if [ -x "/usr/local/bin/$su_gui" ] && [ ! -f "/usr/local/bin/${su_gui}.orig" ]; then
+        mv -f "/usr/local/bin/$su_gui" "/usr/local/bin/${su_gui}.orig"
+    fi
+    cat > "/usr/local/bin/$su_gui" << 'EOF'
+#!/bin/sh
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -d|-u|--user|--description|-m|--message) shift 2 ;;
+        -*) shift ;;
+        *) break ;;
+    esac
+done
+exec /usr/local/bin/sudo -E "$@"
+EOF
+    chmod +x "/usr/local/bin/$su_gui"
+done
 
 create_wrapper() {
-    cat > "/compat/linux/opt/MaXX/bin64/$1" << EOF
+    NAME="$1"
+    TARGET_CMD="$2"
+    rm -f "/compat/linux/opt/MaXX/bin64/$NAME" "/compat/linux/usr/bin/$NAME" "/usr/local/bin/$NAME" "/$NAME" 2>/dev/null || true
+    cat > "/compat/linux/opt/MaXX/bin64/$NAME" << EOF
 #!/bin/sh
 unset LD_LIBRARY_PATH
-export PATH="/usr/local/bin:/usr/bin:/bin:\$PATH"
-exec $2 "\$@" &
+unset LD_PRELOAD
+unset GIO_MODULE_DIR
+unset GTK_PATH
+unset GDK_PIXBUF_MODULE_FILE
+unset GDK_PIXBUF_MODULEDIR
+export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin"
+exec $TARGET_CMD "\$@" >/dev/null 2>&1 &
 EOF
-    chmod +x "/compat/linux/opt/MaXX/bin64/$1"
+    chmod +x "/compat/linux/opt/MaXX/bin64/$NAME"
+    ln -sf "/compat/linux/opt/MaXX/bin64/$NAME" "/compat/linux/usr/bin/$NAME"
+    ln -sf "/compat/linux/opt/MaXX/bin64/$NAME" "/$NAME"
 }
 
-create_wrapper "WEBBROWSER"  "/usr/local/bin/firefox"
-create_wrapper "EMAILCLIENT" "/usr/local/bin/thunderbird"
-create_wrapper "MAIL"        "/usr/local/bin/thunderbird"
-create_wrapper "MEDIAVIEWER" "/usr/local/bin/vlc"
-create_wrapper "AUDIOPLAYER" "/usr/local/bin/vlc"
-create_wrapper "FILEBROWSER" "/usr/local/bin/thunar"
-create_wrapper "TEXTEDITOR"  "/usr/local/bin/mousepad"
-create_wrapper "IMAGEEDITOR" "/usr/local/bin/ristretto"
-create_wrapper "PDFVIEWER"   "/usr/local/bin/firefox"
-create_wrapper "pavucontrol" "/usr/local/bin/dsbmixer"
-create_wrapper "Restart"     "sudo /sbin/reboot"
-create_wrapper "Shutdown"    "sudo /sbin/poweroff"
+XPDF_BIN="/usr/local/bin/xpdf"
+[ ! -x "$XPDF_BIN" ] && [ -x /usr/local/libexec/xpdf/xpdf ] && XPDF_BIN="/usr/local/libexec/xpdf/xpdf"
+[ ! -x "$XPDF_BIN" ] && XPDF_BIN="/usr/local/bin/atril"
+
+if [ -x /usr/local/bin/xfce4-screenshooter ]; then
+    SCREENSHOT_CMD="/usr/local/bin/xfce4-screenshooter"
+elif [ -x /usr/local/bin/gnome-screenshot ]; then
+    SCREENSHOT_CMD="/usr/local/bin/gnome-screenshot -i"
+else
+    SCREENSHOT_CMD="/usr/local/bin/scrot -s"
+fi
+
+create_wrapper "WEBBROWSER"       "/usr/local/bin/firefox"
+create_wrapper "EMAILCLIENT"      "/usr/local/bin/thunderbird"
+create_wrapper "MAIL"             "/usr/local/bin/thunderbird"
+create_wrapper "gnome-calendar"   "/usr/local/bin/thunderbird -calendar"
+create_wrapper "MEDIAVIEWER"      "/usr/local/bin/vlc"
+create_wrapper "AUDIOPLAYER"      "/usr/local/bin/vlc"
+create_wrapper "FILEBROWSER"      "/usr/local/bin/thunar"
+create_wrapper "TEXTEDITOR"       "/usr/local/bin/mousepad"
+create_wrapper "IMGVIEWER"        "/usr/local/bin/ristretto"
+create_wrapper "IMAGEEDITOR"      "/usr/local/bin/gimp"
+create_wrapper "IMGEDITOR"        "/usr/local/bin/gimp"
+create_wrapper "VECTOREDITOR"     "/usr/local/bin/inkscape"
+create_wrapper "PDFVIEWER"        "$XPDF_BIN"
+create_wrapper "screenshot"       "$SCREENSHOT_CMD"
+create_wrapper "gnome-screenshot" "$SCREENSHOT_CMD"
+create_wrapper "gftp"             "/usr/local/bin/filezilla"
+create_wrapper "pavucontrol"      "/usr/local/bin/dsbmixer"
+create_wrapper "xmmix"            "/usr/local/bin/dsbmixer"
+create_wrapper "gvu"              "/usr/local/bin/pavucontrol"
+create_wrapper "grecord"          "/usr/local/bin/pavucontrol"
+create_wrapper "Restart"          "sudo /sbin/reboot"
+create_wrapper "Shutdown"         "sudo /sbin/poweroff"
+
+# Wrappers pour les binaires FreeBSD appeles directement par system.chestrc
+for bin_app in xclock xfontsel dia thunderbird gimp inkscape; do
+    if [ -x "/usr/local/bin/$bin_app" ]; then
+        rm -f "/compat/linux/usr/bin/$bin_app" "/compat/linux/opt/MaXX/bin64/$bin_app"
+        cat > "/compat/linux/opt/MaXX/bin64/$bin_app" << EOF
+#!/bin/sh
+unset LD_LIBRARY_PATH
+unset LD_PRELOAD
+unset GIO_MODULE_DIR
+unset GTK_PATH
+unset GDK_PIXBUF_MODULE_FILE
+unset GDK_PIXBUF_MODULEDIR
+export PATH="/usr/local/bin:/usr/bin:/bin"
+exec /usr/local/bin/$bin_app "\$@" >/dev/null 2>&1 &
+EOF
+        chmod +x "/compat/linux/opt/MaXX/bin64/$bin_app"
+        ln -sf "/compat/linux/opt/MaXX/bin64/$bin_app" "/compat/linux/usr/bin/$bin_app"
+    fi
+done
+
+# Wrapper specifique LibreOffice avec interface X11/Motif SGI (SAL_USE_VCLPLUGIN=gen)
+LO_BIN="/usr/local/bin/libreoffice"
+[ ! -x "$LO_BIN" ] && [ -x /usr/local/lib/libreoffice/program/soffice ] && LO_BIN="/usr/local/lib/libreoffice/program/soffice"
+rm -f /compat/linux/usr/bin/libreoffice /compat/linux/opt/MaXX/bin64/libreoffice
+cat > /compat/linux/opt/MaXX/bin64/libreoffice << EOF
+#!/bin/sh
+unset LD_LIBRARY_PATH
+unset LD_PRELOAD
+unset GIO_MODULE_DIR
+unset GTK_PATH
+unset GDK_PIXBUF_MODULE_FILE
+unset GDK_PIXBUF_MODULEDIR
+export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin"
+export HOME="\${HOME:-${USER_HOME}}"
+export SAL_USE_VCLPLUGIN="gen"
+exec $LO_BIN "\$@" >/dev/null 2>&1 &
+EOF
+chmod +x /compat/linux/opt/MaXX/bin64/libreoffice
+ln -sf /compat/linux/opt/MaXX/bin64/libreoffice /compat/linux/usr/bin/libreoffice
+ln -sf /compat/linux/opt/MaXX/bin64/libreoffice /libreoffice
+
+# Wrapper launch_gnome_app (OctoPkg, Printer Manager, Calculator, Character Map, Search, System Log)
+cat > /compat/linux/opt/MaXX/bin64/launch_gnome_app << 'EOF'
+#!/bin/sh
+unset LD_LIBRARY_PATH
+unset LD_PRELOAD
+unset GIO_MODULE_DIR
+unset GTK_PATH
+unset GDK_PIXBUF_MODULE_FILE
+unset GDK_PIXBUF_MODULEDIR
+export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin"
+
+/usr/local/bin/xhost +SI:localuser:root >/dev/null 2>&1 || true
+
+APP="$1"
+shift
+
+case "$APP" in
+    gnome-software)
+        if [ -x /usr/local/bin/octopkg ]; then
+            exec /usr/local/bin/octopkg "$@" >/dev/null 2>&1 &
+        else
+            exec /compat/linux/opt/MaXX/bin64/adminterm >/dev/null 2>&1 &
+        fi
+        ;;
+    gnome-control-center)
+        if [ "$1" = "printers" ]; then
+            if [ -x /usr/local/bin/system-config-printer ]; then
+                exec /usr/local/bin/sudo -E /usr/local/bin/system-config-printer >/dev/null 2>&1 &
+            else
+                exec /usr/local/bin/firefox "http://localhost:631" >/dev/null 2>&1 &
+            fi
+        else
+            exec /usr/local/bin/nvidia-settings >/dev/null 2>&1 &
+        fi
+        ;;
+    gnome-calculator)
+        if [ -x /usr/local/bin/galculator ]; then
+            exec /usr/local/bin/galculator "$@" >/dev/null 2>&1 &
+        else
+            exec /usr/local/bin/xcalc "$@" >/dev/null 2>&1 &
+        fi
+        ;;
+    gnome-character-map)
+        exec /usr/local/bin/gucharmap "$@" >/dev/null 2>&1 &
+        ;;
+    gnome-search-tool)
+        exec /usr/local/bin/catfish "$@" >/dev/null 2>&1 &
+        ;;
+    gnome-system-log)
+        exec /usr/local/bin/xterm \
+            -name adminterm -class adminterm-color \
+            -title "System Log (/var/log/messages)" \
+            -geometry 110x32 -bg "#1e2638" -fg "#ffffff" \
+            -sb -rightbar -sl 5000 \
+            -fn "-*-lucidatypewriter-medium-r-normal-*-14-*-*-*-*-*-iso8859-1" \
+            -e "/usr/bin/tail -n 200 -f /var/log/messages" &
+        ;;
+    *)
+        exec "$APP" "$@" >/dev/null 2>&1 &
+        ;;
+esac
+EOF
+chmod +x /compat/linux/opt/MaXX/bin64/launch_gnome_app
+ln -sf /compat/linux/opt/MaXX/bin64/launch_gnome_app /usr/local/bin/launch_gnome_app
+ln -sf /compat/linux/opt/MaXX/bin64/launch_gnome_app /compat/linux/usr/bin/launch_gnome_app
+ln -sf /compat/linux/opt/MaXX/bin64/launch_gnome_app /launch_gnome_app
 
 printf "#!/bin/sh\nexit 0\n" > /compat/linux/opt/MaXX/bin64/sound
 chmod +x /compat/linux/opt/MaXX/bin64/sound
@@ -398,6 +597,7 @@ chmod +x /compat/linux/opt/MaXX/bin64/sound
 cat > /compat/linux/opt/MaXX/bin64/winterm << 'EOF'
 #!/bin/sh
 unset LD_LIBRARY_PATH
+unset LD_PRELOAD
 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/opt/MaXX/bin64"
 export LANG="fr_FR.UTF-8"
 exec /usr/local/bin/xterm \
@@ -415,6 +615,7 @@ cp -af /compat/linux/opt/MaXX/bin64/winterm /compat/linux/opt/MaXX/bin64/TERMINA
 cat > /compat/linux/opt/MaXX/bin64/adminterm << 'EOF'
 #!/bin/sh
 unset LD_LIBRARY_PATH
+unset LD_PRELOAD
 export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/opt/MaXX/bin64"
 export LANG="fr_FR.UTF-8"
 exec /usr/local/bin/xterm \
@@ -540,6 +741,7 @@ d=`date +%F_%T`
 [ -f "$HOME/.console" ] && mv "$HOME/.console" "$HOME/.console-$d"
 echo "[`date`] Starting MaXX Interactive Desktop" > "$HOME/.console"
 
+env -u LD_LIBRARY_PATH /usr/local/bin/xhost +SI:localuser:root >/dev/null 2>&1 || true
 env -u LD_LIBRARY_PATH /usr/local/bin/xset m 0 0
 env -u LD_LIBRARY_PATH /usr/local/bin/xset -b
 env -u LD_LIBRARY_PATH /usr/local/bin/xset +fp /opt/MaXX/share/fonts/sgi,/usr/local/share/fonts/misc,/usr/local/share/fonts/100dpi,/usr/local/share/fonts/75dpi 2>/dev/null || true
