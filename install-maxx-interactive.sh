@@ -364,9 +364,9 @@ Toolchest*fontList: -*-helvetica-bold-o-normal-*-14-*-*-*-*-*-iso8859-1
 EOF
 
 # ------------------------------------------------------------------------------
-# 9. OUTILS SYSTEME SGI D'ORIGINE (XCONFIRM, HINV, GR_OSVIEW2) & WRAPPERS FREEBSD
+# 9. OUTILS SYSTEME SGI D'ORIGINE (XCONFIRM, HINV, GR_OSVIEW2, WINTERM, ADMINTERM)
 # ------------------------------------------------------------------------------
-echo "-> [9/11] Configuration des outils SGI d'origine (tellsystem, tellversion, tellgpu, gr_osview2)..."
+echo "-> [9/11] Configuration des outils SGI (tellsystem, tellversion, tellgpu, gr_osview2, winterm, adminterm)..."
 
 create_wrapper() {
     cat > "/compat/linux/opt/MaXX/bin64/$1" << EOF
@@ -393,6 +393,46 @@ create_wrapper "Shutdown"    "sudo /sbin/poweroff"
 
 printf "#!/bin/sh\nexit 0\n" > /compat/linux/opt/MaXX/bin64/sound
 chmod +x /compat/linux/opt/MaXX/bin64/sound
+
+# Terminaux SGI IRIX : winterm / Console (Open Unix Shell) et adminterm (Open Admin Shell)
+cat > /compat/linux/opt/MaXX/bin64/winterm << 'EOF'
+#!/bin/sh
+unset LD_LIBRARY_PATH
+export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/opt/MaXX/bin64"
+export LANG="fr_FR.UTF-8"
+exec /usr/local/bin/xterm \
+    -name winterm -class winterm-color \
+    -title "UNIX Shell ($(whoami)@$(hostname -s))" \
+    -geometry 100x32 \
+    -bg "#1e2638" -fg "#ffffff" -cr "#ff0000" \
+    -sb -rightbar -sl 5000 \
+    -fn "-*-lucidatypewriter-medium-r-normal-*-14-*-*-*-*-*-iso8859-1" &
+EOF
+chmod +x /compat/linux/opt/MaXX/bin64/winterm
+cp -af /compat/linux/opt/MaXX/bin64/winterm /compat/linux/opt/MaXX/bin64/Console
+cp -af /compat/linux/opt/MaXX/bin64/winterm /compat/linux/opt/MaXX/bin64/TERMINAL
+
+cat > /compat/linux/opt/MaXX/bin64/adminterm << 'EOF'
+#!/bin/sh
+unset LD_LIBRARY_PATH
+export PATH="/usr/local/bin:/usr/bin:/bin:/usr/local/sbin:/usr/sbin:/sbin:/opt/MaXX/bin64"
+export LANG="fr_FR.UTF-8"
+exec /usr/local/bin/xterm \
+    -name adminterm -class adminterm-color \
+    -title "ADMIN ROOT SHELL (root@$(hostname -s))" \
+    -geometry 100x32 \
+    -bg "#4a151b" -fg "#ffffff" -cr "#ffff00" \
+    -sb -rightbar -sl 5000 \
+    -fn "-*-lucidatypewriter-medium-r-normal-*-14-*-*-*-*-*-iso8859-1" \
+    -e /usr/local/bin/sudo -i &
+EOF
+chmod +x /compat/linux/opt/MaXX/bin64/adminterm
+cp -af /compat/linux/opt/MaXX/bin64/adminterm /compat/linux/opt/MaXX/bin64/RootConsole
+
+for term_cmd in winterm Console TERMINAL adminterm RootConsole; do
+    ln -sf "/compat/linux/opt/MaXX/bin64/$term_cmd" "/usr/local/bin/$term_cmd"
+    ln -sf "/compat/linux/opt/MaXX/bin64/$term_cmd" "/$term_cmd"
+done
 
 cat > /compat/linux/opt/MaXX/bin64/tellsystem << 'EOF'
 #!/compat/linux/bin/bash
