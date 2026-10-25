@@ -8,7 +8,7 @@ The entire setup—from a fresh base OS installation to a fully hardware-acceler
 ---
 Visual Preview & Screenshots
 Live MaXX Interactive Desktop Session (`2560x1440`)
-![MaXX Interactive Desktop in Action]([myfirstdesktop.jpg](https://github.com/msartor99/FreeBSD15-Maxxdesktop/blob/main/myfirstdesktop.jpeg))
+![MaXX Interactive Desktop in Action]((https://github.com/msartor99/FreeBSD15-Maxxdesktop/blob/main/myfirstdesktop.jpeg))
 Live SGI IRIX `5Dwm` session running on FreeBSD 15.1-RELEASE (HP Z4 G4 / Quadro M4000 / ASUS PB278)
 Boot & Login Artwork
 UEFI Boot & Shutdown Splash	SDDM Login (`sgi_irix` Theme)
