@@ -3,6 +3,7 @@
 # SCRIPT 2 : install-maxx-interactive.sh (VERSION FINALE COMPLETE & IDEMPOTENTE)
 # TARGET OS: FreeBSD 15.1-RELEASE (POSIX /bin/sh)
 # HARDWARE : HP Z4 G4 / Xeon W-2140B / NVIDIA Quadro M4000 (Driver 470) / ASUS PB278
+# REPO     : https://github.com/msartor99/FreeBSD-Maxxdesktop
 # ==============================================================================
 
 set -e
@@ -22,9 +23,9 @@ GITHUB_RAW="https://raw.githubusercontent.com/msartor99/FreeBSD-Maxxdesktop/main
 echo "=== Phase 2 : Installation et Calibration Integrale de MaXX Interactive Desktop ==="
 
 # ------------------------------------------------------------------------------
-# 1. INSTALLATION GARANTIE DES POLICES X11/MOTIF, APPLICATIONS ET OUTILS NATIFS
+# 1. INSTALLATION DES POLICES X11/MOTIF, APPLICATIONS, SONDES MATERIELLES & LINUXULATOR
 # ------------------------------------------------------------------------------
-echo "-> [1/11] Verification des polices X11/SGI, outils natifs et Linuxulator..."
+echo "-> [1/11] Verification des polices X11/SGI, outils materiels et Linuxulator..."
 pkg install -y \
     xorg-fonts font-alias font-misc-misc font-bh-75dpi font-bh-100dpi \
     font-bh-lucidatypewriter-75dpi font-bh-lucidatypewriter-100dpi \
@@ -32,6 +33,7 @@ pkg install -y \
     font-sun-misc font-cursor-misc dejavu noto-basic \
     tradcpp xrdb xset xsetroot xprop xwininfo xkill setxkbmap xclock \
     mkfontscale mkfontdir feh dunst alttab scrot xterm wget curl ImageMagick7 \
+    mesa-demos nvidia-settings dmidecode pciutils usbutils \
     firefox thunderbird vlc pavucontrol dsbmixer ristretto mousepad thunar \
     btop shared-mime-info 2>/dev/null || true
 
@@ -57,7 +59,8 @@ for lpkg in \
     linux-rl9-dbus-libs \
     linux-rl9-libGLU \
     linux-rl9-libglvnd \
-    linux-rl9-motif; do
+    linux-rl9-motif \
+    linux-nvidia-libs-470; do
     pkg install -y "$lpkg" 2>/dev/null || true
 done
 
@@ -83,31 +86,26 @@ ln -sf libncurses.so.6 /compat/linux/usr/lib64/libncurses.so.5
 echo "-> [3/11] Verification et telechargement de l'archive MaXX Desktop Octane 2.2.0..."
 mkdir -p /compat/linux/opt /opt
 
-if [ -x /compat/linux/opt/MaXX/bin64/5Dwm ]; then
-    echo "-> MaXX Desktop est deja extrait dans /compat/linux/opt/MaXX (conservation de l'installation)."
-    ln -sf /compat/linux/opt/MaXX /opt/MaXX
-else
-    if [ -f "/root/${MAXX_FILENAME}" ] && [ ! -f "$MAXX_TAR" ]; then
-        cp -f "/root/${MAXX_FILENAME}" "$MAXX_TAR"
-    fi
+if [ -f "/root/${MAXX_FILENAME}" ] && [ ! -f "$MAXX_TAR" ]; then
+    cp -f "/root/${MAXX_FILENAME}" "$MAXX_TAR"
+fi
 
-    if [ -f "$MAXX_TAR" ] && [ ! -s "$MAXX_TAR" ]; then
-        rm -f "$MAXX_TAR"
-    fi
+if [ -f "$MAXX_TAR" ] && [ ! -s "$MAXX_TAR" ]; then
+    rm -f "$MAXX_TAR"
+fi
 
-    if [ ! -f "$MAXX_TAR" ]; then
-        echo "-> Telechargement de ${MAXX_FILENAME} (233 Mo)..."
-        wget -c -O "$MAXX_TAR" "$MAXX_URL" || fetch -o "$MAXX_TAR" "$MAXX_URL"
-        chown "${TARGET_USER}:${TARGET_USER}" "$MAXX_TAR"
-    else
-        echo "-> Archive valide deja presente dans $MAXX_TAR (cache utilise)."
-    fi
+if [ ! -f "$MAXX_TAR" ]; then
+    echo "-> Telechargement de ${MAXX_FILENAME} (233 Mo)..."
+    wget -c -O "$MAXX_TAR" "$MAXX_URL" || fetch -o "$MAXX_TAR" "$MAXX_URL"
+    chown "${TARGET_USER}:${TARGET_USER}" "$MAXX_TAR"
+fi
 
+if [ ! -x /compat/linux/opt/MaXX/bin64/5Dwm ]; then
     echo "-> Extraction propre de MaXX Desktop dans /compat/linux/opt/MaXX..."
     rm -rf /compat/linux/opt/MaXX /opt/MaXX
     tar -xzf "$MAXX_TAR" -C /compat/linux/opt
-    ln -sf /compat/linux/opt/MaXX /opt/MaXX
 fi
+ln -sf /compat/linux/opt/MaXX /opt/MaXX
 
 # ------------------------------------------------------------------------------
 # 4. TELECHARGEMENT ET CALIBRATION DES SPLASH SCREENS SGI (BOOT UEFI, SDDM, BUREAU)
@@ -115,64 +113,51 @@ fi
 echo "-> [4/11] Telechargement et calibration des images Splash SGI (msartor99/FreeBSD-Maxxdesktop)..."
 mkdir -p /boot/images
 
-# Telechargement depuis msartor99/FreeBSD-Maxxdesktop si non presentes ou vides
+curl -s "https://api.github.com/repos/msartor99/FreeBSD-Maxxdesktop/contents" | grep '"download_url"' | cut -d'"' -f4 | grep -iE "\.jpg|\.png" | while read -r img_url; do
+    fname=$(basename "$img_url")
+    fetch -q -o "/boot/images/$fname" "$img_url" 2>/dev/null || true
+done
+
 if [ ! -s /boot/images/SGI_splash.jpg ]; then
     fetch -q -o /boot/images/SGI_splash.jpg "${GITHUB_RAW}/SGI_splash.jpg" 2>/dev/null || \
     fetch -q -o /boot/images/SGI_splash.jpg "${GITHUB_RAW}/sgi_splash.jpg" 2>/dev/null || true
 fi
-
-if [ ! -s /boot/images/sgi_desktop_orig.jpg ]; then
+if [ ! -s /boot/images/sgi_desktop.jpg ]; then
     fetch -q -o /boot/images/sgi_desktop_orig.jpg "${GITHUB_RAW}/sgi_desktop.jpg" 2>/dev/null || \
     fetch -q -o /boot/images/sgi_desktop_orig.jpg "${GITHUB_RAW}/SGI_desktop.jpg" 2>/dev/null || true
+else
+    cp -f /boot/images/sgi_desktop.jpg /boot/images/sgi_desktop_orig.jpg
 fi
 
-# Fallback sur l'arbre Git de msartor99 si les fichiers sont dans un sous-dossier
-if [ ! -s /boot/images/SGI_splash.jpg ] || [ ! -s /boot/images/sgi_desktop_orig.jpg ]; then
-    curl -s "https://api.github.com/users/msartor99/repos" | grep '"full_name"' | cut -d'"' -f4 | while read -r repo; do
-        curl -s "https://api.github.com/repos/${repo}/git/trees/HEAD?recursive=1" | grep '"path"' | cut -d'"' -f4 | grep -iE "splash|sgi|desktop|\.jpg|\.png" | while read -r path; do
-            case "$path" in
-                *[Ss]plash*) [ ! -s /boot/images/SGI_splash.jpg ] && fetch -q -o /boot/images/SGI_splash.jpg "https://raw.githubusercontent.com/${repo}/HEAD/${path}" || true ;;
-                *[Dd]esktop*) [ ! -s /boot/images/sgi_desktop_orig.jpg ] && fetch -q -o /boot/images/sgi_desktop_orig.jpg "https://raw.githubusercontent.com/${repo}/HEAD/${path}" || true ;;
-            esac
-        done
-    done
+if [ -f /boot/images/SGI_splash.jpg ] && [ ! -f /boot/images/sgi_splash.jpg ]; then
+    cp -f /boot/images/SGI_splash.jpg /boot/images/sgi_splash.jpg
+elif [ -f /boot/images/sgi_splash.jpg ] && [ ! -f /boot/images/SGI_splash.jpg ]; then
+    cp -f /boot/images/sgi_splash.jpg /boot/images/SGI_splash.jpg
 fi
 
-# Fallback ultime sur les fonds officiels inclus dans MaXX Desktop si pas d'acces GitHub
-if [ ! -s /boot/images/SGI_splash.jpg ]; then
-    MAXX_FALLBACK_BG=$(find /compat/linux/opt/MaXX/share -type f \( -name "*.jpg" -o -name "*.png" \) 2>/dev/null | head -n 1)
-    [ -n "$MAXX_FALLBACK_BG" ] && cp -f "$MAXX_FALLBACK_BG" /boot/images/SGI_splash.jpg
-fi
-if [ ! -s /boot/images/sgi_desktop_orig.jpg ] && [ -s /boot/images/SGI_splash.jpg ]; then
-    cp -f /boot/images/SGI_splash.jpg /boot/images/sgi_desktop_orig.jpg
-fi
-
-cp -f /boot/images/SGI_splash.jpg /boot/images/sgi_splash.jpg 2>/dev/null || true
-
-# 4a. Generation du Splash Boot/Shutdown UEFI (1920x1080 PNG 8-bit RGBA < 1.5 Mo pour vt loader)
 if [ -s /boot/images/SGI_splash.jpg ]; then
     /usr/local/bin/magick /boot/images/SGI_splash.jpg \
         -resize 1920x1080^ -gravity center -extent 1920x1080 \
         -strip -depth 8 -alpha set -define png:color-type=6 \
         "png32:/boot/images/sgi_splash.png"
-    # Remplacement egalement du logo graphique du loader FreeBSD au cas ou
     cp -f /boot/images/sgi_splash.png /boot/images/freebsd-logo-rev.png 2>/dev/null || true
 fi
 
-# 4b. Generation du fond d'ecran SGI 2560x1440 pour ASUS PB278 (SDDM + Bureau MaXX)
 if [ -s /boot/images/sgi_desktop_orig.jpg ]; then
     /usr/local/bin/magick /boot/images/sgi_desktop_orig.jpg \
         -resize 2560x1440^ -gravity center -extent 2560x1440 \
         /boot/images/sgi_desktop.jpg
+elif [ -s /boot/images/SGI_splash.jpg ]; then
+    /usr/local/bin/magick /boot/images/SGI_splash.jpg \
+        -resize 2560x1440^ -gravity center -extent 2560x1440 \
+        /boot/images/sgi_desktop.jpg
 fi
 
-# 4c. Application au theme SDDM sgi_irix
 if [ -s /boot/images/sgi_desktop.jpg ] && [ -d /usr/local/share/sddm/themes/sgi_irix ]; then
     cp -f /boot/images/sgi_desktop.jpg /usr/local/share/sddm/themes/sgi_irix/background.jpg
     chmod 644 /usr/local/share/sddm/themes/sgi_irix/background.jpg
 fi
 
-# 4d. Configuration complete de /boot/loader.conf pour forcer le Splash graphique UEFI
 sed -i '' '/^boot_mute=/d; /^beastie_disable=/d; /^loader_logo=/d; /^splash=/d; /^shutdown_splash=/d; /^efi_max_resolution=/d' /boot/loader.conf
 cat >> /boot/loader.conf << 'EOF'
 efi_max_resolution="1080p"
@@ -208,10 +193,10 @@ find /compat/linux/opt/MaXX/bin64 /compat/linux/opt/MaXX/bin /compat/linux/opt/M
 done
 
 # ------------------------------------------------------------------------------
-# 7. PONTS SYSTEME, POLICES SGI ET PREPROCESSEUR C (TRADCPP) POUR LIBXT/XRDB
+# 7. PONTS SYSTEME, OUTILS HINV (DMIDECODE/LSPCI/LSUSB), POLICES SGI & TRADCPP
 # ------------------------------------------------------------------------------
-echo "-> [7/11] Creation des ponts systeme, polices SGI et tradcpp..."
-mkdir -p /compat/linux/usr/bin /compat/linux/bin /compat/linux/lib
+echo "-> [7/11] Creation des ponts systeme, sondes materielles SGI et tradcpp..."
+mkdir -p /compat/linux/usr/bin /compat/linux/usr/sbin /compat/linux/bin /compat/linux/lib
 
 chflags noschg /usr/bin/cpp 2>/dev/null || true
 if [ -f /usr/bin/cpp ] && [ ! -L /usr/bin/cpp ]; then
@@ -230,8 +215,18 @@ for xtool in xrdb xset xsetroot xprop xwininfo xkill setxkbmap xclock feh; do
         ln -sf "/usr/local/bin/$xtool" "/compat/linux/usr/bin/$xtool"
     fi
 done
-ln -sf /usr/bin/killall /compat/linux/usr/bin/killall
-ln -sf /usr/bin/which   /compat/linux/usr/bin/which
+
+ln -sf /compat/linux/bin/bash      /bin/bash
+ln -sf /usr/bin/killall            /compat/linux/usr/bin/killall
+ln -sf /usr/bin/which              /compat/linux/usr/bin/which
+ln -sf /usr/local/bin/nvidia-smi   /usr/bin/nvidia-smi
+ln -sf /usr/local/bin/nvidia-smi   /compat/linux/usr/bin/nvidia-smi
+ln -sf /usr/local/sbin/dmidecode   /compat/linux/usr/sbin/dmidecode
+ln -sf /usr/local/sbin/dmidecode   /compat/linux/usr/bin/dmidecode
+ln -sf /usr/local/bin/lspci        /compat/linux/usr/bin/lspci
+ln -sf /usr/local/sbin/lsusb       /compat/linux/usr/bin/lsusb
+ln -sf /compat/linux/opt/MaXX/bin64/xosview2 /xosview2
+ln -sf /compat/linux/opt/MaXX/bin64/xconfirm /xconfirm
 
 mkdir -p /compat/linux/usr/share/fonts
 ln -sf /usr/local/share/fonts/dejavu /compat/linux/usr/share/fonts/dejavu
@@ -263,6 +258,8 @@ fi
 
 printf "[Icon Theme]\nName=Default\nComment=Default SGI Cursor Theme\nInherits=redSGI\n" > /usr/local/share/icons/default/index.theme
 
+sed -i '' 's/\*darkScheme:.*/\*darkScheme: FALSE/g' /compat/linux/opt/MaXX/etc/Xdefaults.d/* "${USER_HOME}/.maxxdesktop/Xdefaults.d/"* 2>/dev/null || true
+
 mkdir -p /compat/linux/opt/MaXX/share/X11/app-defaults
 cat > /tmp/build_sgi_theme.xrm << 'EOF'
 #define GAMMA_1_7
@@ -272,18 +269,18 @@ cat > /tmp/build_sgi_theme.xrm << 'EOF'
 #include "/opt/MaXX/share/X11/schemes/Base/FontPalette"
 #include "/opt/MaXX/share/X11/schemes/IndigoMagic/BaseColorPalette"
 #include "/opt/MaXX/share/X11/schemes/Base/Base"
+#include "/opt/MaXX/etc/Xdefaults.d/Xdefaults.init"
+#include "/opt/MaXX/etc/Xdefaults.d/Xdefaults.classic"
+#include "/opt/MaXX/etc/Xdefaults.d/Xdefaults.bitmapFont"
+#include "/opt/MaXX/etc/Xdefaults.d/Xdefaults.5dwm"
+#include "/opt/MaXX/etc/Xdefaults.d/Xdefaults.toolchest"
 EOF
-/usr/local/bin/tradcpp -P /tmp/build_sgi_theme.xrm > /compat/linux/opt/MaXX/share/X11/app-defaults/SgiIndigoMagic.ad
+/usr/local/bin/tradcpp -P /tmp/build_sgi_theme.xrm > /compat/linux/opt/MaXX/share/X11/app-defaults/SgiIndigoMagic.ad 2>/dev/null || true
 rm -f /tmp/build_sgi_theme.xrm
-
-cat /compat/linux/opt/MaXX/etc/Xdefaults.d/Xdefaults.init \
-    /compat/linux/opt/MaXX/etc/Xdefaults.d/Xdefaults.classic \
-    /compat/linux/opt/MaXX/etc/Xdefaults.d/Xdefaults.bitmapFont \
-    /compat/linux/opt/MaXX/etc/Xdefaults.d/Xdefaults.5dwm \
-    /compat/linux/opt/MaXX/etc/Xdefaults.d/Xdefaults.toolchest >> /compat/linux/opt/MaXX/share/X11/app-defaults/SgiIndigoMagic.ad
 
 cat >> /compat/linux/opt/MaXX/share/X11/app-defaults/SgiIndigoMagic.ad << 'EOF'
 *scheme: IndigoMagic
+*darkScheme: FALSE
 *chest_orientation: XmVERTICAL
 *modernLookandFeel: false
 *desktopStyle: Classic
@@ -314,14 +311,62 @@ Toolchest*XmLabel*foreground: #000000
 Toolchest*XmRowColumn*background: #c1c1c1
 Toolchest*XmRowColumn*foreground: #000000
 Toolchest*XmSeparator*background: #c1c1c1
+5Dwm*background: #c1c1c1
+5Dwm*foreground: #000000
+5Dwm*topShadowColor: #e1e1e1
+5Dwm*bottomShadowColor: #4c4c4c
+5Dwm*selectColor: #8e8e8e
+5Dwm*menu*background: #c1c1c1
+5Dwm*menu*foreground: #000000
+5Dwm*menu*topShadowColor: #e1e1e1
+5Dwm*menu*bottomShadowColor: #4c4c4c
+5Dwm*menu*XmPushButton*background: #c1c1c1
+5Dwm*menu*XmPushButton*foreground: #000000
+5Dwm*menu*XmCascadeButton*background: #c1c1c1
+5Dwm*menu*XmCascadeButton*foreground: #000000
+5Dwm*menu*XmLabel*background: #c1c1c1
+5Dwm*menu*XmLabel*foreground: #000000
+5Dwm*menu*XmSeparator*background: #c1c1c1
+5Dwm*feedback*background: #c1c1c1
+5Dwm*feedback*foreground: #000000
+5Dwm*icon*background: #c1c1c1
+5Dwm*icon*foreground: #000000
+5DWm*background: #c1c1c1
+5DWm*foreground: #000000
+5DWm*menu*background: #c1c1c1
+5DWm*menu*foreground: #000000
+Mwm*background: #c1c1c1
+Mwm*foreground: #000000
+Mwm*menu*background: #c1c1c1
+Mwm*menu*foreground: #000000
+xconfirm*background: #c1c1c1
+xconfirm*foreground: #000000
+xconfirm*topShadowColor: #e1e1e1
+xconfirm*bottomShadowColor: #4c4c4c
+xconfirm*XmForm*background: #c1c1c1
+xconfirm*XmForm*foreground: #000000
+xconfirm*XmLabel*background: #c1c1c1
+xconfirm*XmLabel*foreground: #000000
+xconfirm*XmPushButton*background: #999999
+xconfirm*XmPushButton*foreground: #000000
+xconfirm*XmText*background: #c1c1c1
+xconfirm*XmText*foreground: #000000
+xconfirm*XmTextField*background: #c1c1c1
+xconfirm*XmTextField*foreground: #000000
+Xconfirm*background: #c1c1c1
+Xconfirm*foreground: #000000
+*XmDialogShell*background: #c1c1c1
+*XmDialogShell*foreground: #000000
+*XmMessageBox*background: #c1c1c1
+*XmMessageBox*foreground: #000000
 Toolchest*fontList: -*-helvetica-bold-o-normal-*-14-*-*-*-*-*-iso8859-1
 *fontList: -*-helvetica-medium-r-normal-*-12-*-*-*-*-*-iso8859-1
 EOF
 
 # ------------------------------------------------------------------------------
-# 9. WRAPPERS D'APPLICATIONS ET D'OUTILS SYSTEME POUR LE TOOLCHEST (SANS CONFLIT LD)
+# 9. OUTILS SYSTEME SGI D'ORIGINE (XCONFIRM, HINV, GR_OSVIEW2) & WRAPPERS FREEBSD
 # ------------------------------------------------------------------------------
-echo "-> [9/11] Deploiement des wrappers FreeBSD pour mlaunch et le Toolchest..."
+echo "-> [9/11] Configuration des outils SGI d'origine (tellsystem, tellversion, tellgpu, gr_osview2)..."
 
 create_wrapper() {
     cat > "/compat/linux/opt/MaXX/bin64/$1" << EOF
@@ -343,53 +388,92 @@ create_wrapper "TEXTEDITOR"  "/usr/local/bin/mousepad"
 create_wrapper "IMAGEEDITOR" "/usr/local/bin/ristretto"
 create_wrapper "PDFVIEWER"   "/usr/local/bin/firefox"
 create_wrapper "pavucontrol" "/usr/local/bin/dsbmixer"
+create_wrapper "Restart"     "sudo /sbin/reboot"
+create_wrapper "Shutdown"    "sudo /sbin/poweroff"
 
 printf "#!/bin/sh\nexit 0\n" > /compat/linux/opt/MaXX/bin64/sound
 chmod +x /compat/linux/opt/MaXX/bin64/sound
 
-cat > /compat/linux/opt/MaXX/bin64/mlaunch << 'EOF'
-#!/bin/sh
-while [ $# -gt 0 ]; do
-    case "$1" in -*) shift ;; *) break ;; esac
-done
-CMD="$1"; shift
-if [ -x "/opt/MaXX/bin64/$CMD" ]; then
-    exec "/opt/MaXX/bin64/$CMD" "$@" &
-elif [ -x "/usr/local/bin/$CMD" ]; then
-    unset LD_LIBRARY_PATH
-    exec "/usr/local/bin/$CMD" "$@" &
-else
-    unset LD_LIBRARY_PATH
-    exec "$CMD" "$@" &
-fi
-EOF
-chmod +x /compat/linux/opt/MaXX/bin64/mlaunch
-
-create_wrapper "gr_osview" "/usr/local/bin/xterm -title 'SGI System Monitor (btop)' -geometry 110x35 -bg black -fg green -e /usr/local/bin/btop"
-create_wrapper "Restart"   "sudo /sbin/reboot"
-create_wrapper "Shutdown"  "sudo /sbin/poweroff"
-
 cat > /compat/linux/opt/MaXX/bin64/tellsystem << 'EOF'
-#!/bin/sh
-unset LD_LIBRARY_PATH
-exec /usr/local/bin/xterm -title "SGI Hardware Inventory (hinv)" -geometry 90x28 -bg "#1e2638" -fg "#ffffff" -e /bin/sh -c '
-echo "======================================================================"
-echo "  SILICON GRAPHICS / MAXX INTERACTIVE DESKTOP - HARDWARE INVENTORY"
-echo "======================================================================"
-echo "System    : $(uname -sr)"
-echo "Hostname  : $(hostname)"
-echo "Processor : $(sysctl -n hw.model) ($(sysctl -n hw.ncpu) threads)"
-echo "Memory    : $(( $(sysctl -n hw.physmem) / 1024 / 1024 )) MB RAM"
-echo "Graphics  : NVIDIA Quadro M4000 (Driver 470 Stable)"
-echo "Display   : ASUS PB278 (2560x1440 @ 24-bit TrueColor)"
-echo "----------------------------------------------------------------------"
-nvidia-smi 2>/dev/null || true
-printf "\nAppuyez sur Entree pour fermer..."
-read dummy
-' &
+#!/compat/linux/bin/bash
+export MAXX_BIN="/opt/MaXX/bin64"
+export PATH="/opt/MaXX/bin64:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:$PATH"
+HINV_OUT=$("$MAXX_BIN/hinv" 2>/dev/null)
+"$MAXX_BIN/xconfirm" -c -icon info -t "$HINV_OUT" -header HINV >/dev/null 2>&1 &
 EOF
 chmod +x /compat/linux/opt/MaXX/bin64/tellsystem
-cp -af /compat/linux/opt/MaXX/bin64/tellsystem /compat/linux/opt/MaXX/bin64/hinv
+
+cat > /compat/linux/opt/MaXX/bin64/tellversion << 'EOF'
+#!/compat/linux/bin/bash
+env -u LD_LIBRARY_PATH /usr/local/bin/xset b off 2>/dev/null || true
+version=$(cat /opt/MaXX/etc/version 2>/dev/null || echo "Octane 2.2.0")
+arch=$(/bin/uname -m)
+fbsd_ver=$(/bin/freebsd-version -u 2>/dev/null || /usr/bin/uname -sr)
+linux_ver=$(cat /compat/linux/etc/redhat-release 2>/dev/null || echo "Rocky Linux 9")
+
+/opt/MaXX/bin64/xconfirm -icon info -c -C -t "Congratulations!
+
+You are running MaXX Interactive Desktop
+($arch / x86_64) Edition
+
+Version: $version
+Host OS: FreeBSD $fbsd_ver
+Linuxulator: $linux_ver" -header "Tell version" >/dev/null 2>&1 &
+EOF
+chmod +x /compat/linux/opt/MaXX/bin64/tellversion
+
+cat > /compat/linux/opt/MaXX/bin64/tellgpu << 'EOF'
+#!/compat/linux/bin/bash
+if [ -x /usr/local/bin/nvidia-smi ]; then
+    GPU_OUT=$(env -u LD_LIBRARY_PATH /usr/local/bin/nvidia-smi --query --display=MEMORY,UTILIZATION,TEMPERATURE 2>/dev/null)
+    /opt/MaXX/bin64/xconfirm -c -icon info -t "$GPU_OUT" -header "tell gpu" >/dev/null 2>&1 &
+else
+    /opt/MaXX/bin64/xconfirm -c -icon info -t "Unknown GPU - Not NVIDIA, sorry!" -header "tell gpu" >/dev/null 2>&1 &
+fi
+EOF
+chmod +x /compat/linux/opt/MaXX/bin64/tellgpu
+
+for cfg in \
+    /compat/linux/opt/MaXX/etc/Xdefaults.d/Xdefaults.Gr_osview.dark \
+    /compat/linux/opt/MaXX/etc/Xdefaults.d/Xdefaults.Gr_osview.light \
+    "${USER_HOME}/.maxxdesktop/Xdefaults.d/Xdefaults.Gr_osview.dark" \
+    "${USER_HOME}/.maxxdesktop/Xdefaults.d/Xdefaults.Gr_osview.light"; do
+    if [ -f "$cfg" ]; then
+        sed -i '' 's/xosview\*disk:[[:space:]]*True/xosview*disk: False/g' "$cfg"
+        sed -i '' 's/xosview\*page:[[:space:]]*True/xosview*page: False/g' "$cfg"
+        sed -i '' 's/xosview\*int:[[:space:]]*True/xosview*int: False/g' "$cfg"
+        sed -i '' 's/xosview\*ints:[[:space:]]*True/xosview*ints: False/g' "$cfg"
+        sed -i '' 's/xosview\*codecs:[[:space:]]*True/xosview*codecs: False/g' "$cfg"
+        grep -q "xosview\*disk:" "$cfg" || echo "xosview*disk: False" >> "$cfg"
+        grep -q "xosview\*page:" "$cfg" || echo "xosview*page: False" >> "$cfg"
+        grep -q "xosview\*int:"  "$cfg" || echo "xosview*int: False" >> "$cfg"
+        grep -q "xosview\*ints:" "$cfg" || echo "xosview*ints: False" >> "$cfg"
+    fi
+done
+
+cat > /compat/linux/opt/MaXX/bin64/gr_osview2 << 'EOF'
+#!/compat/linux/bin/bash
+export MAXX_HOME="/opt/MaXX"
+export MAXX_BIN="/opt/MaXX/bin64"
+export PATH="/opt/MaXX/bin64:/usr/local/bin:/usr/bin:/bin:$PATH"
+
+font_size=$(cat "$HOME/.maxxdesktop/SmallFontSize" 2>/dev/null || echo "10")
+font_name=$(cat "$HOME/.maxxdesktop/SmallFontName" 2>/dev/null || echo "Sans")
+font_face="${font_name}:weight=200:slant=italic:size=${font_size}"
+
+isDark=$(env -u LD_LIBRARY_PATH /usr/local/bin/xrdb -q 2>/dev/null | grep darkScheme | cut -d ':' -f2 | awk '{print $1}')
+if [ "$isDark" = "FALSE" ]; then
+    CFG="$HOME/.maxxdesktop/Xdefaults.d/Xdefaults.Gr_osview.light"
+else
+    CFG="$HOME/.maxxdesktop/Xdefaults.d/Xdefaults.Gr_osview.dark"
+fi
+[ ! -f "$CFG" ] && CFG="/opt/MaXX/etc/Xdefaults.d/Xdefaults.Gr_osview.dark"
+
+env -u LD_LIBRARY_PATH /usr/local/bin/xrdb -nocpp -merge "$CFG" 2>/dev/null || true
+exec "$MAXX_BIN/xosview2" --config "$CFG" -font "$font_face" "$@" >/dev/null 2>&1 &
+EOF
+chmod +x /compat/linux/opt/MaXX/bin64/gr_osview2
+cp -af /compat/linux/opt/MaXX/bin64/gr_osview2 /compat/linux/opt/MaXX/bin64/gr_osview
 
 # ------------------------------------------------------------------------------
 # 10. INITIALISATION DU PROFIL UTILISATEUR ET DU SCRIPT OFFICIEL XSESSION.DT
@@ -429,6 +513,11 @@ export XDG_DATA_DIRS="/opt/MaXX/share:/usr/local/share:/usr/share"
 if [ ! -d "$HOME/.maxxdesktop" ]; then
     cd "$HOME"
     $MAXX_HOME/share/misc/HOME/initMaXX-Desktop-Home.sh >> "$HOME/.console" 2>&1
+    for cfg in "$HOME/.maxxdesktop/Xdefaults.d/Xdefaults.Gr_osview."*; do
+        if [ -f "$cfg" ]; then
+            sed -i '' 's/xosview\*disk:[[:space:]]*True/xosview*disk: False/g; s/xosview\*page:[[:space:]]*True/xosview*page: False/g; s/xosview\*codecs:[[:space:]]*True/xosview*codecs: False/g' "$cfg" 2>/dev/null || true
+        fi
+    done
 fi
 
 mkdir -p "$HOME/.icons"
@@ -437,12 +526,11 @@ echo "ch" > "$HOME/.maxxdesktop/KeyboardInput.Choice"
 echo "fr_FR.UTF-8" > "$HOME/.maxxdesktop/Language.Choice"
 
 $MAXX_BIN/telldesktop load
-env -u LD_LIBRARY_PATH /usr/local/bin/xrdb -nocpp -override /opt/MaXX/share/X11/app-defaults/SgiIndigoMagic.ad 2>/dev/null || true
+env -u LD_LIBRARY_PATH /usr/local/bin/xrdb -nocpp -load /opt/MaXX/share/X11/app-defaults/SgiIndigoMagic.ad 2>/dev/null || true
 env -u LD_LIBRARY_PATH /usr/local/bin/setxkbmap ch fr 2>/dev/null || true
 
 $MAXX_BIN/telldesktop start
 
-# Application du fond d'ecran SGI APRES telldesktop start (avec relance differee si ROX-Filer initialise son Pinboard)
 if [ -f /boot/images/sgi_desktop.jpg ]; then
     env -u LD_LIBRARY_PATH /usr/local/bin/feh --bg-fill /boot/images/sgi_desktop.jpg &
     (sleep 2 && env -u LD_LIBRARY_PATH /usr/local/bin/feh --bg-fill /boot/images/sgi_desktop.jpg) &
@@ -468,7 +556,9 @@ export USERNAME="$USER"
 export HOME=${HOME:-/home/$USER}
 export LANG="fr_FR.UTF-8"
 export XCURSOR_THEME="redSGI"
-export PATH="/opt/MaXX/bin64:/opt/MaXX/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+export MAXX_HOME="/opt/MaXX"
+export MAXX_BIN="/opt/MaXX/bin64"
+export PATH="/opt/MaXX/bin64:/opt/MaXX/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/bin:$PATH"
 exec /compat/linux/bin/bash /opt/MaXX/etc/skel/Xsession.dt > "$HOME/.maxx-session.log" 2>&1
 EOF
 chmod +x /usr/local/bin/startmaxx

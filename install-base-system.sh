@@ -1,287 +1,304 @@
 #!/bin/sh
 # ==============================================================================
-# SCRIPT 1: install-base.sh (BASÉ SUR 4.1-SGI-FreeBSD 15 M4000 workstation.txt)
-# TARGET OS: FreeBSD 15.1-RELEASE
-# HARDWARE: HP Z4 G4 / Xeon W-2140B / NVIDIA Quadro M4000 (Driver 470)
-# DISPLAY: ASUS PB278 (2560x1440)
+# SCRIPT 1 : install-base-system.sh (VERSION FINALE COMPLETE & IDEMPOTENTE)
+# TARGET OS: FreeBSD 15.1-RELEASE (POSIX /bin/sh)
+# HARDWARE : HP Z4 G4 / Xeon W-2140B / NVIDIA Quadro M4000 (Driver 470) / ASUS PB278
+# REPO     : https://github.com/msartor99/FreeBSD-Maxxdesktop
 # ==============================================================================
 
+set -e
+
 if [ "$(id -u)" -ne 0 ]; then
-    echo "ERROR: Ce script doit être exécuté en root."
+    echo "ERROR: Ce script doit etre execute en root."
     exit 1
 fi
 
-####################################################
-# install sudo access & BASE CONFIG
-####################################################
+TARGET_USER="administrateur"
+USER_HOME="/home/${TARGET_USER}"
+GITHUB_RAW="https://raw.githubusercontent.com/msartor99/FreeBSD-Maxxdesktop/main"
 
-pkg update -y
-pkg install -y sudo
+echo "=== Phase 1 : Configuration du Systeme de Base FreeBSD 15.1-RELEASE (HP Z4 G4) ==="
+
+# ------------------------------------------------------------------------------
+# 1. CONFIGURATION DES DEPOTS PKG (BRANCHE LATEST) ET MISE A JOUR DU CATALOGUE
+# ------------------------------------------------------------------------------
+echo "-> [1/11] Configuration des depots FreeBSD en mode 'latest'..."
+mkdir -p /usr/local/etc/pkg/repos
+cat > /usr/local/etc/pkg/repos/FreeBSD.conf << 'EOF'
+FreeBSD: {
+  url: "pkg+http://pkg.FreeBSD.org/${ABI}/latest",
+  mirror_type: "srv",
+  signature_type: "fingerprints",
+  fingerprints: "/usr/share/keys/pkg",
+  enabled: yes
+}
+EOF
+
+env ASSUME_ALWAYS_YES=yes pkg bootstrap -f
+pkg update -f
+pkg upgrade -y
+
+# ------------------------------------------------------------------------------
+# 2. INSTALLATION DES PAQUETS DE BASE, XORG, PILOTE NVIDIA 470, SDDM ET AUDIO
+# ------------------------------------------------------------------------------
+echo "-> [2/11] Installation de Xorg, NVIDIA Driver 470 (Quadro M4000), SDDM et utilitaires..."
+pkg install -y \
+    sudo bash git curl wget nano vim-console htop btop \
+    pciutils usbutils dmidecode lsof tree zip unzip tar \
+    xorg-server xorg-drivers xinit xauth xrandr xdpyinfo \
+    xrdb xset xsetroot xprop xwininfo xkill setxkbmap xclock xterm \
+    nvidia-driver-470 nvidia-settings-470 nvidia-xconfig mesa-demos \
+    linux-nvidia-libs-470 \
+    sddm qt5-graphicaleffects qt5-quickcontrols2 \
+    ImageMagick7 feh scrot dunst alttab tradcpp \
+    alsa-lib alsa-utils pulseaudio pavucontrol dsbmixer \
+    dbus consolekit2 polkit hal 2>/dev/null || true
+
+# ------------------------------------------------------------------------------
+# 3. VERIFICATION DU COMPTE UTILISATEUR 'administrateur' ET DROITS SUDO
+# ------------------------------------------------------------------------------
+echo "-> [3/11] Verification de l'utilisateur ${TARGET_USER} (wheel, operator, video)..."
+if ! id "${TARGET_USER}" >/dev/null 2>&1; then
+    pw useradd -n "${TARGET_USER}" -m -s /bin/sh -G wheel,operator,video
+else
+    pw groupmod wheel -m "${TARGET_USER}"
+    pw groupmod operator -m "${TARGET_USER}"
+    pw groupmod video -m "${TARGET_USER}"
+fi
 
 mkdir -p /usr/local/etc/sudoers.d
-echo "%wheel ALL=(ALL:ALL) ALL" > /usr/local/etc/sudoers.d/wheel
-chmod 0440 /usr/local/etc/sudoers.d/wheel
+cat > /usr/local/etc/sudoers.d/administrateur << EOF
+%wheel ALL=(ALL:ALL) NOPASSWD: ALL
+${TARGET_USER} ALL=(ALL:ALL) NOPASSWD: ALL
+EOF
+chmod 440 /usr/local/etc/sudoers.d/administrateur
 
-sysrc sshd_enable="YES"
-sed -i '' 's/^#*PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
-sh /etc/rc.d/sshd restart
+# ------------------------------------------------------------------------------
+# 4. LOCALISATION FRANCAISE (UTF-8) ET CLAVIER SUISSE ROMAND (FR_CH / CH FR)
+# ------------------------------------------------------------------------------
+echo "-> [4/11] Configuration de la langue fr_FR.UTF-8 et du clavier Suisse Romand..."
+sysrc keymap="ch.fr.kbd"
+kbdcontrol -l ch.fr.kbd 2>/dev/null || true
 
-####################################################
-# some tips and silent boot
-####################################################
+cat > /etc/profile.d/locale_sgi.sh << 'EOF'
+export LANG="fr_FR.UTF-8"
+export LC_ALL="fr_FR.UTF-8"
+export MM_CHARSET="UTF-8"
+EOF
+chmod +x /etc/profile.d/locale_sgi.sh
 
-sysrc -f /boot/loader.conf boot_mute="YES"
-sysrc splash_changer_enable="YES"
+for prof in "${USER_HOME}/.profile" "${USER_HOME}/.shrc" "/root/.profile"; do
+    if [ -f "$prof" ]; then
+        grep -q 'LANG=fr_FR.UTF-8' "$prof" || cat >> "$prof" << 'EOF'
+export LANG="fr_FR.UTF-8"
+export MM_CHARSET="UTF-8"
+EOF
+    fi
+done
 
-if ! grep -q " > /dev/null" /etc/rc; then
-    sed -i '' 's/run_rc_script ${_rc_elem} ${_boot}/run_rc_script ${_rc_elem} ${_boot} > \/dev\/null/g' /etc/rc
-fi
-sysrc rc_startmsgs="NO"
+# ------------------------------------------------------------------------------
+# 5. OPTIMISATION DU CHARGEUR DE DEMARRAGE (/BOOT/LOADER.CONF) & NOYAU
+# ------------------------------------------------------------------------------
+echo "-> [5/11] Configuration de /boot/loader.conf (UEFI 1080p, NVIDIA, Son, Temp Xeon)..."
+touch /boot/loader.conf
+sed -i '' '/^kern.vty=/d; /^efi_max_resolution=/d; /^coretemp_load=/d; /^snd_hda_load=/d; /^linux_load=/d; /^linux64_load=/d; /^boot_mute=/d; /^beastie_disable=/d; /^loader_logo=/d; /^splash=/d; /^shutdown_splash=/d' /boot/loader.conf
 
-sysrc -f /boot/loader.conf autoboot_delay="3"
-
-grep -q "kern.sched.preempt_thresh" /etc/sysctl.conf || echo "kern.sched.preempt_thresh=224" >> /etc/sysctl.conf
-grep -q "kern.ipc.shm_allow_removed" /etc/sysctl.conf || echo "kern.ipc.shm_allow_removed=1" >> /etc/sysctl.conf
-
-sysrc -f /boot/loader.conf tmpfs_load="YES"
-sysrc -f /boot/loader.conf aio_load="YES"
-
-sysctl net.local.stream.recvspace=65536
-sysctl net.local.stream.sendspace=65536
-
-####################################################
-# for Intel CPU (Xeon W-2140B)
-####################################################
-
-pkg install -y cpu-microcode sensors
-sysrc -f /boot/loader.conf coretemp_load="YES"
-sysrc -f /boot/loader.conf cpu_microcode_name="/boot/firmware/intel-ucode.bin"
-
-####################################################
-# enable Linux for Nvidia driver and other things
-####################################################
-
-sysrc linux_enable="YES"
-sysrc linux64_enable="YES"
-kldload linux 2>/dev/null || true
-kldload linux64 2>/dev/null || true
-service linux start
-sysrc linux_mounts_enable="YES"
-
-pkg install -y linux-rl9
-
-####################################################
-# configuration base and utilities
-####################################################
-
-pkg install -y doas unzip libzip wget git
-pkg install -y htop neofetch python3 bashtop
-pkg install -y ImageMagick7
-
-# configuration powermanagement
-pkg install -y smartmontools
-sysrc smartd_enable="YES"
-[ -f /usr/local/etc/smartd.conf ] || cp /usr/local/etc/smartd.conf.sample /usr/local/etc/smartd.conf
-service smartd start
-
-####################################################
-# install french class
-####################################################
-
-sed -i '' '/^french|/,/:tc=default:/d' /etc/login.conf 2>/dev/null
-echo "  " >> /etc/login.conf
-echo 'french|French Users Accounts:\' >> /etc/login.conf
-echo '     :charset=UTF-8:\' >> /etc/login.conf
-echo '     :lang=fr_FR.UTF-8:\' >> /etc/login.conf
-echo '      lc_all=fr_FR:\' >> /etc/login.conf
-echo '      lc_collate=fr_FR:\' >> /etc/login.conf
-echo '      lc_ctype=fr_FR:\' >> /etc/login.conf
-echo '      lc_messages=fr_FR:\' >> /etc/login.conf
-echo '     :tc=default:' >> /etc/login.conf
-echo '   ' >> /etc/login.conf
-
-cap_mkdb /etc/login.conf
-echo 'defaultclass=french' > /etc/adduser.conf
-
-pw usermod administrateur -G wheel,operator,video -L french
-pw usermod root -L french
-
-####################################################
-# install printer manager cups and usb support
-####################################################
-
-cat > /etc/devfs.rules << 'EOF'
-[localrules=5]
-add path 'da*' mode 0660 group operator
-add path 'cd*' mode 0660 group operator
-add path 'uscanner*' mode 0660 group operator
-add path 'xpt*' mode 660 group operator
-add path 'pass*' mode 660 group operator
-add path 'md*' mode 0660 group operator
-add path 'msdosfs/*' mode 0660 group operator
-add path 'ext2fs/*' mode 0660 group operator
-add path 'ntfs/*' mode 0660 group operator
-add path 'usb/*' mode 0660 group operator
-add path 'unlpt*' mode 0660 group cups
-add path 'lpt*' mode 0660 group cups
+cat >> /boot/loader.conf << 'EOF'
+kern.vty="vt"
+efi_max_resolution="1080p"
+coretemp_load="YES"
+snd_hda_load="YES"
+linux_load="YES"
+linux64_load="YES"
+boot_mute="YES"
+beastie_disable="YES"
+loader_logo="none"
+splash="/boot/images/sgi_splash.png"
+shutdown_splash="/boot/images/sgi_splash.png"
 EOF
 
-pkg install -y cups gutenprint cups-filters hplip system-config-printer
-sysrc cupsd_enable="YES"
-sysrc devfs_system_ruleset="localrules"
-service devfs restart
+# ------------------------------------------------------------------------------
+# 6.OPTIMISATION SYSCTL (/ETC/SYSCTL.CONF) POUR STATION GRAPHIQUE X11 / MOTIF
+# ------------------------------------------------------------------------------
+echo "-> [6/11] Optimisation des parametres noyau dans /etc/sysctl.conf..."
+touch /etc/sysctl.conf
+sed -i '' '/^kern.ipc.shmmax=/d; /^kern.ipc.shmall=/d; /^kern.ipc.shm_allow_removed=/d; /^compat.linux.osrelease=/d; /^kern.sched.preempt_thresh=/d; /^hw.snd.default_auto=/d' /etc/sysctl.conf
 
-# install USB support
-pkg install -y fusefs-ntfs fusefs-ext2 fusefs-hfsfuse
-sysrc kld_list+="fusefs ext2fs"
-kldload fusefs 2>/dev/null || true
-kldload ext2fs 2>/dev/null || true
-grep -q "vfs.usermount=1" /etc/sysctl.conf || echo "vfs.usermount=1" >> /etc/sysctl.conf
+cat >> /etc/sysctl.conf << 'EOF'
+# Memoire partagee X11 / Motif / OpenGL et compatibilite Linuxulator
+kern.ipc.shmmax=2147483648
+kern.ipc.shmall=524288
+kern.ipc.shm_allow_removed=1
+kern.sched.preempt_thresh=224
+hw.snd.default_auto=1
+EOF
+service sysctl reload 2>/dev/null || true
 
-####################################################
-# install audio
-####################################################
+# ------------------------------------------------------------------------------
+# 7. CONFIGURATION DU LINUXULATOR ET POINTS DE MONTAGE (/ETC/FSTAB)
+# ------------------------------------------------------------------------------
+echo "-> [7/11] Configuration de /etc/fstab pour Linuxulator (linprocfs, linsysfs, tmpfs)..."
+mkdir -p /compat/linux/proc /compat/linux/sys /compat/linux/dev/shm /compat/linux/dev/fd
 
-pkg install -y pulseaudio pipewire wireplumber
-pkg install -y audio/freedesktop-sound-theme
+grep -q '/compat/linux/proc' /etc/fstab || cat >> /etc/fstab << 'EOF'
+linprocfs   /compat/linux/proc      linprocfs   rw                      0   0
+linsysfs    /compat/linux/sys       linsysfs    rw                      0   0
+devfs       /compat/linux/dev       devfs       rw,late                 0   0
+fdescfs     /compat/linux/dev/fd    fdescfs     rw,late,linrdlnk        0   0
+tmpfs       /compat/linux/dev/shm   tmpfs       rw,late,size=2g,mode=1777 0 0
+EOF
 
-sysrc sound_load="YES"
-sysrc snd_hda_load="YES"
-sysctl hw.snd.default_unit=1
-
-####################################################
-# install xorg, applications, xfce and tools
-####################################################
-
-pkg install -y xorg dbus avahi signal-cli seatd xfce xfce4-goodies \
-firefox vlc ffmpeg libva-vdpau-driver libva-utils libdvdread libdvdnav \
-xdg-user-dirs octopkg multimedia/mpv \
-gstreamer1-plugins-all gstreamer1-libav libbluray
-
+# ------------------------------------------------------------------------------
+# 8. ACTIVATION DES SERVICES DANS /ETC/RC.CONF (NVIDIA-MODESET, DBUS, SDDM, NTP)
+# ------------------------------------------------------------------------------
+echo "-> [8/11] Configuration des services dans /etc/rc.conf..."
+sysrc kld_list="nvidia-modeset linux linux64 coretemp"
 sysrc dbus_enable="YES"
-sysrc avahi_enable="YES"
-grep -q "procfs" /etc/fstab || echo "proc       /proc       procfs       rw       0       0" >> /etc/fstab
-grep -q "fdescfs" /etc/fstab || echo "fdesc      /dev/fd     fdescfs      rw       0       0" >> /etc/fstab
+sysrc linux_enable="YES"
+sysrc linux_mounts_enable="YES"
+sysrc sddm_enable="YES"
+sysrc sddm_lang="fr_FR.UTF-8"
+sysrc ntpd_enable="YES"
+sysrc ntpd_sync_on_start="YES"
+sysrc moused_enable="YES"
+sysrc powerd_enable="YES"
+sysrc powerd_flags="-a hiadaptive -b adaptive"
 
-sysrc seatd_enable="YES"
+kldload nvidia-modeset 2>/dev/null || true
+service linux start 2>/dev/null || true
+mount -a 2>/dev/null || true
 
-####################################################
-# set swiss french keyboard on X11 config
-####################################################
-
+# ------------------------------------------------------------------------------
+# 9. CONFIGURATION XORG POUR NVIDIA QUADRO M4000 + ECRAN ASUS PB278 (2560x1440)
+# ------------------------------------------------------------------------------
+echo "-> [9/11] Generation de la configuration Xorg (Quadro M4000 + Clavier Suisse Romand)..."
 mkdir -p /usr/local/etc/X11/xorg.conf.d
-cat > /usr/local/etc/X11/xorg.conf.d/20-keyboards.conf << 'EOF'
-Section "ServerFlags"
-    Option "DontZap" "false"
-EndSection
 
-Section "InputClass"
-    Identifier      "All Keyboards"
-    MatchIsKeyboard "yes"
-    Option          "XkbLayout" "ch"
-    Option          "XkbVariant" "fr"
-    Option          "XkbOptions" "terminate:ctrl_alt_bksp"
-EndSection
-EOF
-
-####################################################
-# setup xorg nvidia and 27" screen (2560x1440)
-####################################################
-
-cat > /usr/local/etc/X11/xorg.conf.d/10-nvidia.conf << 'EOF'
+cat > /usr/local/etc/X11/xorg.conf.d/10-nvidia-sgi.conf << 'EOF'
 Section "Device"
-    Identifier     "NVIDIA Card"
+    Identifier     "NVIDIA Quadro M4000"
     Driver         "nvidia"
-    Option         "ModeValidation" "NoMaxResolutionCheck"
-EndSection
-
-Section "Monitor"
-    Identifier     "Monitor0"
-    VendorName     "Unknown"
-    ModelName      "Unknown"
+    VendorName     "NVIDIA Corporation"
+    BoardName      "Quadro M4000"
+    Option         "NoLogo" "True"
+    Option         "UseEDID" "True"
+    Option         "ModeValidation" "AllowNonEdidModes"
 EndSection
 
 Section "Screen"
-    Identifier     "Screen0"
-    Device         "NVIDIA Card"
-    Monitor        "Monitor0"
+    Identifier     "SGI_Screen"
+    Device         "NVIDIA Quadro M4000"
     DefaultDepth    24
-    Option         "MetaModes" "2560x1440 +0+0"
-    SubSection "Display"
+    SubSection     "Display"
         Depth       24
-        Modes      "2560x1440"
+        Modes      "2560x1440" "1920x1080"
     EndSubSection
 EndSection
 EOF
 
-sysrc -f /boot/loader.conf efi_max_resolution="1440p"
-sysrc -f /boot/loader.conf kern.vt.fb.default_mode="2560x1440"
+cat > /usr/local/etc/X11/xorg.conf.d/20-keyboard-ch-fr.conf << 'EOF'
+Section "InputClass"
+    Identifier      "Swiss French Keyboard"
+    MatchIsKeyboard "on"
+    Option          "XkbModel" "pc105"
+    Option          "XkbLayout" "ch"
+    Option          "XkbVariant" "fr"
+EndSection
+EOF
 
-####################################################
-# install Nvidia driver 470 for Quadro M4000 (SANS DRM-KMOD)
-####################################################
+# ------------------------------------------------------------------------------
+# 10. CREATION DU THEME SDDM 'sgi_irix' ET CONFIGURATION DE SDDM.CONF
+# ------------------------------------------------------------------------------
+echo "-> [10/11] Installation du theme SDDM SGI IRIX et configuration de /usr/local/etc/sddm.conf..."
+THEME_DIR="/usr/local/share/sddm/themes/sgi_irix"
+mkdir -p "$THEME_DIR"
 
-pciconf -lv | grep -B4 "VGA"
-
-pkg install -y nvidia-driver-470 linux-nvidia-libs-470 nvidia-kmod-470 libc6-shim
-pkg install -y nvidia-settings nvidia-xconfig
-
-sysrc -f /boot/loader.conf hw.nvidiadrm.modeset="1"
-sysrc -f /boot/loader.conf nvidia-drm.modeset="1"
-
-sysrc kld_list+="nvidia-modeset"
-sysrc nvidia_modeset_enable="YES"
-
-nvidia-xconfig
-
-####################################################
-# install sddm, theme sgi_irix and splash
-####################################################
-
-pkg install -y sddm
-
-sysrc sddm_enable="YES"
-sysrc sddm_lang="ch_FR"
-
-if ! grep -q "setxkbmap ch fr" /usr/local/share/sddm/scripts/Xsetup 2>/dev/null; then
-    echo "setxkbmap ch fr" >> /usr/local/share/sddm/scripts/Xsetup
+if [ -d /usr/local/share/sddm/themes/elarun ]; then
+    cp -af /usr/local/share/sddm/themes/elarun/* "$THEME_DIR/" 2>/dev/null || true
+elif [ -d /usr/local/share/sddm/themes/maldives ]; then
+    cp -af /usr/local/share/sddm/themes/maldives/* "$THEME_DIR/" 2>/dev/null || true
 fi
 
-cat > /usr/local/etc/sddm.conf << 'EOF'
-# Disable virtual keyboard by default
-InputMethod=""
+cat > "${THEME_DIR}/theme.conf" << 'EOF'
+[General]
+background=background.jpg
+type=image
 EOF
 
-IMG_DIR="/boot/images"
-mkdir -p "$IMG_DIR"
-SGI_WALLPAPER_URL="https://raw.githubusercontent.com/msartor99/FreeBSD15-Maxxdesktop/main/sgi_desktop.jpg"
-SGI_SPLASH_URL="https://raw.githubusercontent.com/msartor99/FreeBSD15-Maxxdesktop/main/SGI_splash.jpg"
+cat > /usr/local/etc/sddm.conf << 'EOF'
+[General]
+Numlock=on
 
-fetch -qo "$IMG_DIR/SGI_splash.jpg" "$SGI_SPLASH_URL" 2>/dev/null || true
-fetch -qo "$IMG_DIR/sgi_desktop.jpg" "$SGI_WALLPAPER_URL" 2>/dev/null || true
-
-cd /boot/images
-magick "SGI_splash.jpg" -resize 1920x1080^ -gravity center -extent 1920x1080 -alpha set -define png:color-type=6 "png32:SGI_splash.png"
-cd /root
-
-# Activation de l'image au démarrage et à l'extinction
-sysrc splash_changer_enable="YES"
-sysrc -f /boot/loader.conf splash="/boot/images/SGI_splash.png"
-sysrc -f /boot/loader.conf shutdown_splash="/boot/images/SGI_splash.png"
-
-# Création du thème SDDM sgi_irix
-mkdir -p /usr/local/share/sddm/themes/sgi_irix
-cp -R /usr/local/share/sddm/themes/maldives/* /usr/local/share/sddm/themes/sgi_irix/
-rm -f /usr/local/share/sddm/themes/sgi_irix/background.jpg
-cp /boot/images/sgi_desktop.jpg /usr/local/share/sddm/themes/sgi_irix/background.jpg
-
-mkdir -p /usr/local/etc/sddm.conf.d
-cat > /usr/local/etc/sddm.conf.d/10-theme.conf << 'EOF'
 [Theme]
 Current=sgi_irix
+CursorTheme=redSGI
+
+[Users]
+MaximumUid=65000
+MinimumUid=1000
+RememberLastUser=true
+RememberLastSession=true
+
+[X11]
+ServerArguments=-nolisten tcp -dpi 96
 EOF
 
-echo "=========================================================="
-echo " Installation de base terminée avec succès !"
-echo " Vous pouvez redémarrer avec : reboot"
-echo "=========================================================="
+# ------------------------------------------------------------------------------
+# 11. TELECHARGEMENT ET CALIBRATION DES IMAGES SPLASH SGI (msartor99/FreeBSD-Maxxdesktop)
+# ------------------------------------------------------------------------------
+echo "-> [11/11] Telechargement et calibration des Splash Screens SGI depuis msartor99/FreeBSD-Maxxdesktop..."
+mkdir -p /boot/images
+
+curl -s "https://api.github.com/repos/msartor99/FreeBSD-Maxxdesktop/contents" | grep '"download_url"' | cut -d'"' -f4 | grep -iE "\.jpg|\.png" | while read -r img_url; do
+    fname=$(basename "$img_url")
+    fetch -q -o "/boot/images/$fname" "$img_url" 2>/dev/null || true
+done
+
+if [ ! -s /boot/images/SGI_splash.jpg ]; then
+    fetch -q -o /boot/images/SGI_splash.jpg "${GITHUB_RAW}/SGI_splash.jpg" 2>/dev/null || \
+    fetch -q -o /boot/images/SGI_splash.jpg "${GITHUB_RAW}/sgi_splash.jpg" 2>/dev/null || true
+fi
+if [ ! -s /boot/images/sgi_desktop.jpg ]; then
+    fetch -q -o /boot/images/sgi_desktop_orig.jpg "${GITHUB_RAW}/sgi_desktop.jpg" 2>/dev/null || \
+    fetch -q -o /boot/images/sgi_desktop_orig.jpg "${GITHUB_RAW}/SGI_desktop.jpg" 2>/dev/null || true
+else
+    cp -f /boot/images/sgi_desktop.jpg /boot/images/sgi_desktop_orig.jpg
+fi
+
+if [ -f /boot/images/SGI_splash.jpg ] && [ ! -f /boot/images/sgi_splash.jpg ]; then
+    cp -f /boot/images/SGI_splash.jpg /boot/images/sgi_splash.jpg
+elif [ -f /boot/images/sgi_splash.jpg ] && [ ! -f /boot/images/SGI_splash.jpg ]; then
+    cp -f /boot/images/sgi_splash.jpg /boot/images/SGI_splash.jpg
+fi
+
+# Generation du Splash Boot/Shutdown UEFI (1920x1080 PNG 8-bit RGBA pour vt loader)
+if [ -s /boot/images/SGI_splash.jpg ]; then
+    /usr/local/bin/magick /boot/images/SGI_splash.jpg \
+        -resize 1920x1080^ -gravity center -extent 1920x1080 \
+        -strip -depth 8 -alpha set -define png:color-type=6 \
+        "png32:/boot/images/sgi_splash.png"
+    cp -f /boot/images/sgi_splash.png /boot/images/freebsd-logo-rev.png 2>/dev/null || true
+fi
+
+# Generation du fond d'ecran SGI en 2560x1440 (ASUS PB278) et application a SDDM
+if [ -s /boot/images/sgi_desktop_orig.jpg ]; then
+    /usr/local/bin/magick /boot/images/sgi_desktop_orig.jpg \
+        -resize 2560x1440^ -gravity center -extent 2560x1440 \
+        /boot/images/sgi_desktop.jpg
+elif [ -s /boot/images/SGI_splash.jpg ]; then
+    /usr/local/bin/magick /boot/images/SGI_splash.jpg \
+        -resize 2560x1440^ -gravity center -extent 2560x1440 \
+        /boot/images/sgi_desktop.jpg
+fi
+
+if [ -s /boot/images/sgi_desktop.jpg ]; then
+    cp -f /boot/images/sgi_desktop.jpg "${THEME_DIR}/background.jpg"
+    chmod 644 "${THEME_DIR}/background.jpg"
+fi
+
+chown -R "${TARGET_USER}:${TARGET_USER}" "${USER_HOME}"
+
+echo "======================================================================"
+echo "=== Phase 1 terminee avec succes ! Vous pouvez lancer le Script 2. ==="
+echo "======================================================================"
+exit 0
