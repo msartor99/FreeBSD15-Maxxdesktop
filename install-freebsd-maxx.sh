@@ -160,12 +160,12 @@ install_pkgs \
     font-adobe-75dpi font-adobe-100dpi font-ibm-type1 font-dec-misc \
     font-sun-misc font-cursor-misc dejavu noto-basic noto-sans
 
-# 2.2 X11 Tools, tradcpp preprocessor, and hardware/system utilities
+# 2.2 X11 Tools, tradcpp preprocessor, audio tools, and hardware/system utilities
 install_pkgs \
     tradcpp xrdb xset xsetroot xwininfo xkill setxkbmap xhost xclock xfontsel xcalc \
-    mkfontscale mkfontdir feh dunst alttab scrot xterm xscreensaver \
+    mkfontscale mkfontdir feh dunst libnotify alttab scrot xterm xscreensaver \
     wget curl bash sudo unzip libzip git htop btop python3 smartmontools \
-    mesa-demos dmidecode pciutils usbutils shared-mime-info
+    mesa-demos dmidecode pciutils usbutils shared-mime-info alsa-utils
 
 if ! pkg info -e ImageMagick7 >/dev/null 2>&1 && ! pkg info -e ImageMagick6 >/dev/null 2>&1; then
     pkg install -y ImageMagick7 || pkg install -y ImageMagick6 || true
@@ -452,6 +452,12 @@ if [ -n "$IM_CMD" ]; then
     fi
 fi
 
+# Copy calibrated SGI wallpaper into MaXX backgrounds directory for the 'background' gallery
+mkdir -p /compat/linux/opt/MaXX/share/backgrounds
+if [ -s "$IMG_DIR/sgi_desktop.jpg" ]; then
+    cp -f "$IMG_DIR/sgi_desktop.jpg" /compat/linux/opt/MaXX/share/backgrounds/SGI_Default_Desktop.jpg
+fi
+
 # Replace freebsd-logo-rev.png with sgilogo.png (fallback to sgi_splash.png)
 if [ -s "$IMG_DIR/sgilogo.png" ]; then
     cp -f "$IMG_DIR/sgilogo.png" "$IMG_DIR/freebsd-logo-rev.png"
@@ -531,14 +537,24 @@ ln -sf /usr/local/bin/tradcpp /compat/linux/lib/cpp
 ln -sf /usr/local/bin/tradcpp /compat/linux/usr/bin/cpp
 ln -sf /usr/local/bin/tradcpp /compat/linux/bin/cpp
 
-for xtool in xrdb xset xsetroot xprop xwininfo xkill setxkbmap xhost feh; do
-    rm -f "/compat/linux/usr/bin/$xtool" "/compat/linux/bin/$xtool"
-    if [ -x "/usr/local/bin/$xtool" ]; then
-        ln -sf "/usr/local/bin/$xtool" "/compat/linux/usr/bin/$xtool"
+# Native FreeBSD bash wrapper for X11/Notification tools called from Linuxulator (cleans LD_LIBRARY_PATH)
+for tool in feh dunst alttab xrdb xset xsetroot xprop xwininfo xkill setxkbmap xhost; do
+    rm -f "/compat/linux/usr/bin/$tool" "/compat/linux/bin/$tool"
+    if [ -x "/usr/local/bin/$tool" ]; then
+        cat > "/compat/linux/usr/bin/$tool" << EOF
+#!/usr/local/bin/bash
+unset LD_LIBRARY_PATH
+unset LD_PRELOAD
+export PATH="/usr/local/bin:/usr/bin:/bin"
+exec /usr/local/bin/$tool "\$@"
+EOF
+        chmod +x "/compat/linux/usr/bin/$tool"
+        ln -sf "/compat/linux/usr/bin/$tool" "/compat/linux/bin/$tool"
     fi
 done
 
-ln -sf /compat/linux/bin/bash      /bin/bash
+ln -sf /usr/local/bin/bash         /bin/bash
+[ -x /usr/local/bin/aplay ] && ln -sf /usr/local/bin/aplay /compat/linux/usr/bin/aplay
 ln -sf /usr/bin/killall            /compat/linux/usr/bin/killall
 ln -sf /usr/bin/which              /compat/linux/usr/bin/which
 ln -sf /usr/local/bin/nvidia-smi   /usr/bin/nvidia-smi
@@ -550,7 +566,7 @@ ln -sf /usr/local/sbin/lsusb       /compat/linux/usr/bin/lsusb
 ln -sf /compat/linux/opt/MaXX/bin64/xosview2 /xosview2
 ln -sf /compat/linux/opt/MaXX/bin64/xconfirm /xconfirm
 
-for mbin in background iconcatalog fm; do
+for mbin in iconcatalog fm; do
     if [ -x "/compat/linux/opt/MaXX/bin64/$mbin" ]; then
         ln -sf "/compat/linux/opt/MaXX/bin64/$mbin" "/$mbin"
         ln -sf "/compat/linux/opt/MaXX/bin64/$mbin" "/usr/local/bin/$mbin"
@@ -713,6 +729,113 @@ EOF
 # 11. NATIVE FREEBSD APPLICATION WRAPPERS & SGI SYSTEM TOOLS
 # ==============================================================================
 echo "-> [12/15] Generating unconditional FreeBSD application wrappers and SGI tools..."
+
+# SGI Background Selector ('background') with live ROX-Filer ('fm --RPC') & feh integration
+rm -f /compat/linux/opt/MaXX/bin64/background /compat/linux/opt/MaXX/bin64/background.bin
+cat > /compat/linux/opt/MaXX/bin64/background << 'EOF'
+#!/usr/local/bin/bash
+unset LD_LIBRARY_PATH
+unset LD_PRELOAD
+export MAXX_HOME="/opt/MaXX"
+export MAXX_BIN="/opt/MaXX/bin64"
+export PATH="/usr/local/bin:/usr/bin:/bin:/opt/MaXX/bin64"
+
+apply_maxx_backdrop() {
+    IMG="$1"
+    STYLE="${2:-Stretch}"
+    [ -z "$IMG" ] && return 1
+
+    CLEAN_IMG=$(echo "$IMG" | sed 's|^/compat/linux||')
+    if [ -f "/compat/linux${CLEAN_IMG}" ]; then
+        FBSD_IMG="/compat/linux${CLEAN_IMG}"
+    else
+        FBSD_IMG="$IMG"
+    fi
+    [ ! -f "$FBSD_IMG" ] && return 1
+
+    # 1. Apply on X11 Root Window via feh
+    case "$STYLE" in
+        Tile)   /usr/local/bin/feh --no-fehbg --bg-tile "$FBSD_IMG" 2>/dev/null || true ;;
+        Centre) /usr/local/bin/feh --no-fehbg --bg-center "$FBSD_IMG" 2>/dev/null || true ;;
+        Scale)  /usr/local/bin/feh --no-fehbg --bg-max "$FBSD_IMG" 2>/dev/null || true ;;
+        *)      /usr/local/bin/feh --no-fehbg --bg-fill "$FBSD_IMG" 2>/dev/null || true ;;
+    esac
+
+    # 2. Save user choice persistently for next session startup
+    mkdir -p "$HOME/.maxxdesktop"
+    rm -f "$HOME/.maxxdesktop/Background.Choice" 2>/dev/null || true
+    printf "%s|%s\n" "$CLEAN_IMG" "$STYLE" > "$HOME/.maxxdesktop/Background.Choice"
+
+    # 3. Idempotently update ROX-Filer Pinboard XML files (pb_myspace) using awk
+    for pb in "$HOME/.config/rox.sourceforge.net/ROX-Filer/pb_"*; do
+        if [ -f "$pb" ]; then
+            /usr/bin/awk -v img="$CLEAN_IMG" -v style="$STYLE" '
+            BEGIN { done=0 }
+            /<backdrop/ {
+                print "  <backdrop style=\"" style "\">" img "</backdrop>"
+                done=1
+                next
+            }
+            /<\/pinboard>/ {
+                if (!done) {
+                    print "  <backdrop style=\"" style "\">" img "</backdrop>"
+                }
+                print $0
+                next
+            }
+            { print $0 }
+            ' "$pb" > "${pb}.tmp" && mv -f "${pb}.tmp" "$pb"
+        fi
+    done
+
+    # 4. Send live SOAP RPC command to MaXX 'fm' (ROX-Filer)
+    /compat/linux/opt/MaXX/bin64/fm --RPC << RPC_EOF >/dev/null 2>&1 || true
+<?xml version="1.0"?>
+<env:Envelope xmlns:env="http://www.w3.org/2001/12/soap-envelope">
+ <env:Body xmlns="http://rox.sourceforge.net/SOAP/ROX-Filer">
+  <SetBackdrop>
+   <Filename>$CLEAN_IMG</Filename>
+   <Style>$STYLE</Style>
+  </SetBackdrop>
+ </env:Body>
+</env:Envelope>
+RPC_EOF
+}
+
+# Session restore mode (-r)
+if [ "$1" = "-r" ]; then
+    if [ -s "$HOME/.maxxdesktop/Background.Choice" ]; then
+        SAVED_IMG=$(cut -d'|' -f1 "$HOME/.maxxdesktop/Background.Choice")
+        SAVED_STYLE=$(cut -d'|' -f2 "$HOME/.maxxdesktop/Background.Choice")
+        apply_maxx_backdrop "$SAVED_IMG" "${SAVED_STYLE:-Stretch}"
+    elif [ -f /boot/images/sgi_desktop.jpg ]; then
+        apply_maxx_backdrop "/boot/images/sgi_desktop.jpg" "Stretch"
+    fi
+    exit 0
+fi
+
+# Direct apply mode (--apply)
+if [ "$1" = "--apply" ] && [ -n "$2" ]; then
+    apply_maxx_backdrop "$2" "${3:-Stretch}"
+    exit 0
+fi
+
+rm -f "$HOME"/.FEHBG_*.png "$HOME/.fehbg" 2>/dev/null || true
+
+# Launch SGI Wallpaper Gallery (Double-click or press ENTER on any thumbnail to set background)
+exec /usr/local/bin/feh \
+    --title "SGI Indigo Magic - Background (Double-Click or Press ENTER on thumbnail to apply)" \
+    --thumbnails --thumb-width 220 --thumb-height 140 \
+    --index-info "%n\n%wx%h" \
+    --Geometry 980x660 \
+    --action "/compat/linux/opt/MaXX/bin64/background --apply '%F' Stretch" \
+    /opt/MaXX/share/backgrounds \
+    /opt/MaXX/share/wallpapers/SgiBackgrounds
+EOF
+chmod +x /compat/linux/opt/MaXX/bin64/background
+ln -sf /compat/linux/opt/MaXX/bin64/background /background
+ln -sf /compat/linux/opt/MaXX/bin64/background /usr/local/bin/background
+ln -sf /compat/linux/opt/MaXX/bin64/background /compat/linux/usr/bin/background
 
 for su_gui in qt-sudo gksu gksudo kdesu pkexec; do
     if [ -x "/usr/local/bin/$su_gui" ] && [ ! -f "/usr/local/bin/${su_gui}.orig" ]; then
@@ -1033,6 +1156,7 @@ export MAXX_ETC="/opt/MaXX/etc"
 export MAXX_SETTINGS="/opt/MaXX/share/msettings"
 EOF
 
+# Idempotent full write of Xsession.dt (no sed multi-line substitutions)
 cat > /compat/linux/opt/MaXX/etc/skel/Xsession.dt << EOF
 #!/bin/bash
 ver="2.2"
@@ -1044,11 +1168,11 @@ d=\`date +%F_%T\`
 echo "[\`date\`] Starting MaXX Interactive Desktop" > "\$HOME/.console"
 
 env -u LD_LIBRARY_PATH /usr/local/bin/xhost +SI:localuser:root >/dev/null 2>&1 || true
-env -u LD_LIBRARY_PATH /usr/local/bin/xset m 0 0
-env -u LD_LIBRARY_PATH /usr/local/bin/xset -b
+env -u LD_LIBRARY_PATH /usr/local/bin/xset m 0 0 2>/dev/null || true
+env -u LD_LIBRARY_PATH /usr/local/bin/xset -b 2>/dev/null || true
 env -u LD_LIBRARY_PATH /usr/local/bin/xset +fp /opt/MaXX/share/fonts/sgi,/usr/local/share/fonts/misc,/usr/local/share/fonts/100dpi,/usr/local/share/fonts/75dpi 2>/dev/null || true
 env -u LD_LIBRARY_PATH /usr/local/bin/xset fp rehash 2>/dev/null || true
-env -u LD_LIBRARY_PATH /usr/local/bin/xsetroot -solid SkyBlue4
+env -u LD_LIBRARY_PATH /usr/local/bin/xsetroot -solid SkyBlue4 2>/dev/null || true
 
 . /opt/MaXX/etc/system.runtime
 . \$MAXX_HOME/etc/system.desktopenv
@@ -1065,28 +1189,28 @@ if [ ! -d "\$HOME/.maxxdesktop" ]; then
 fi
 
 mkdir -p "\$HOME/.icons"
-ln -shf /opt/MaXX/share/ROX-Filer/ROX "\$HOME/.icons/ROX"
+rm -rf "\$HOME/.icons/ROX"
+ln -s /opt/MaXX/share/ROX-Filer/ROX "\$HOME/.icons/ROX"
 echo "${XKBLAYOUT}" > "\$HOME/.maxxdesktop/KeyboardInput.Choice"
 echo "${USER_LOCALE}" > "\$HOME/.maxxdesktop/Language.Choice"
 
-\$MAXX_BIN/telldesktop load
+\$MAXX_BIN/telldesktop load >> "\$HOME/.console" 2>&1
 env -u LD_LIBRARY_PATH /usr/local/bin/xrdb -nocpp -load /opt/MaXX/share/X11/app-defaults/SgiIndigoMagic.ad 2>/dev/null || true
 env -u LD_LIBRARY_PATH /usr/local/bin/setxkbmap ${XKBLAYOUT} ${XKBVARIANT} 2>/dev/null || true
 
-\$MAXX_BIN/telldesktop start
+\$MAXX_BIN/telldesktop start >> "\$HOME/.console" 2>&1
 
-if [ -f /boot/images/sgi_desktop.jpg ]; then
-    env -u LD_LIBRARY_PATH /usr/local/bin/feh --bg-fill /boot/images/sgi_desktop.jpg &
-    (sleep 2 && env -u LD_LIBRARY_PATH /usr/local/bin/feh --bg-fill /boot/images/sgi_desktop.jpg) &
-fi
+# Restore SGI user wallpaper after ROX-Filer ('fm -p=myspace') initializes
+(sleep 1 && /opt/MaXX/bin64/background -r >/dev/null 2>&1) &
 
 \$MAXX_BIN/5Dwm -multiscreen >> "\$HOME/.console" 2>&1
-\$MAXX_BIN/telldesktop stop
+\$MAXX_BIN/telldesktop stop >> "\$HOME/.console" 2>&1
 EOF
 chmod +x /compat/linux/opt/MaXX/etc/skel/Xsession.dt
 
 mkdir -p "${USER_HOME}/.icons" "${USER_HOME}/.config"
-ln -shf /opt/MaXX/share/ROX-Filer/ROX "${USER_HOME}/.icons/ROX"
+rm -rf "${USER_HOME}/.icons/ROX"
+ln -s /opt/MaXX/share/ROX-Filer/ROX "${USER_HOME}/.icons/ROX"
 
 # ==============================================================================
 # 13. /USR/LOCAL/BIN/STARTMAXX LAUNCHER & SDDM SESSION REGISTRATION
