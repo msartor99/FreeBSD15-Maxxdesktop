@@ -13,7 +13,8 @@ if [ "$(id -u)" -ne 0 ]; then
     exit 1
 fi
 
-BACKTITLE="MaXX Desktop SGI - FreeBSD 15.1 Workstation Installer"
+FBSD_VER=$(/bin/freebsd-version -u 2>/dev/null || /usr/bin/uname -r)
+BACKTITLE="MaXX Desktop SGI - FreeBSD ${FBSD_VER} Workstation Installer"
 
 # Resilient atomic package installer (prevents bulk pkg transaction rollbacks)
 install_pkgs() {
