@@ -1,79 +1,63 @@
-SGI IRIX Workstation (MaXX Interactive Desktop) on FreeBSD 15.1-RELEASE
-![OS](https://img.shields.io/badge/OS-FreeBSD_15.1--RELEASE-AB2B28?style=for-the-badge&logo=freebsd&logoColor=white)
-![Desktop](https://img.shields.io/badge/Desktop-MaXX_Octane_2.2.0_(SGI_5Dwm)-334c66?style=for-the-badge)
-![GPU](https://img.shields.io/badge/GPU-NVIDIA_Quadro_M4000_(Driver_470)-76B900?style=for-the-badge&logo=nvidia&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-blue?style=for-the-badge)
-This repository contains idempotent automation scripts designed to transform an HP Z4 G4 workstation running FreeBSD 15.1-RELEASE into a modern Silicon Graphics (SGI) IRIX workstation, powered by MaXX Interactive Desktop (Octane 2.2.0).
-The entire setup—from a fresh base OS installation to a fully hardware-accelerated SGI desktop environment—deploys in under 15 minutes.
+# MaXX Interactive Desktop (SGI IRIX Indigo Magic) on FreeBSD 15.1-RELEASE
+
+This repository provides a turnkey, automated, and **100% idempotent** solution (written in pure POSIX `/bin/sh`) to transform a fresh installation of **FreeBSD 15.1-RELEASE** into a complete graphical workstation running **MaXX Interactive Desktop v2.2.0 (Octane)** — the faithful recreation of the legendary **Silicon Graphics (SGI) IRIX Indigo Magic** environment (`5Dwm`, `toolchest`, `tellsystem`, `gr_osview`, `rox-filer`).
+
 ---
-Visual Preview & Screenshots
-Live MaXX Interactive Desktop Session (`2560x1440`)
-![MaXX Interactive Desktop in Action]((https://github.com/msartor99/FreeBSD15-Maxxdesktop/blob/main/myfirstdesktop.jpeg))
-Live SGI IRIX `5Dwm` session running on FreeBSD 15.1-RELEASE (HP Z4 G4 / Quadro M4000 / ASUS PB278)
-Boot & Login Artwork
-UEFI Boot & Shutdown Splash	SDDM Login (`sgi_irix` Theme)
-![SGI Boot Splash](SGI_splash.jpg)	![SGI Desktop Wallpaper](sgi_desktop.jpg)
-1920x1080 32-bit RGBA Framebuffer Splash	QHD 2560x1440 SGI Login & Desktop Background
+
+## What's New: Audited & Merged Single-Script Installer
+
+Previously, the installation was split into two separate phases (`install-base-system.sh` and `install-maxx-interactive.sh`), requiring an intermediate reboot and suffering from configuration overwrite conflicts between the two scripts.
+
+**Both scripts have now been audited, fixed, and merged into a single unified installer: `install-freebsd-maxx.sh`.**
+
+### Changelog & Key Fixes
+1. **Single-Pass Deployment (Zero-Touch after configuration)**: No more running a first script, rebooting, and launching the second one. Kernel modules (`linux`, `linux64`) and virtual filesystems (`linprocfs`, `linsysfs`, `fdescfs`, `tmpfs`) are loaded and mounted on the fly during installation.
+2. **Dynamic Propagation of `bsddialog` Choices**:
+   * The previous Phase 2 script hardcoded the locale (`fr_FR.UTF-8`), keyboard layout (`ch fr`), target user (`administrateur`), and NVIDIA driver branch (`linux-nvidia-libs-470`).
+   * Now, all parameters selected interactively at startup (e.g., `fr_CH.UTF-8` locale, Swiss French `ch-fr` keyboard, AMD/Intel/NVIDIA GPU across all driver branches) are dynamically injected into Xorg, SDDM, `winterm`, `startmaxx`, and `Xsession.dt`.
+3. **Unified UEFI Splash Screen (`/boot/loader.conf`)**:
+   * Resolved the conflict where the second script overwrote `/boot/loader.conf` by forcing `1080p`.
+   * The SGI boot and shutdown splash screen (`sgi_splash.png`), the SDDM login screen (`sgi_irix`), and the desktop wallpaper are now all calibrated via ImageMagick to the native resolution selected in the menu (Full HD, WUXGA, QHD `2560x1440`, or 4K UHD).
+4. **Fixed Privilege Elevation (`sudoers` & GUI Wrappers)**:
+   * Added `/usr/local/bin/octopkg` and `/usr/local/bin/system-config-printer` to the `%wheel` `NOPASSWD` rules, allowing them to launch seamlessly from the SGI *Toolchest* via the `qt-sudo` / `gksu` / `pkexec` wrappers.
+5. **Strict POSIX `/bin/sh` Idempotency**:
+   * Replaced `ln -sf` with `ln -shf` on directory symlinks (`/opt/MaXX`, fonts, `/tmp`, `/compat/linux/usr/local`) to prevent recursive sub-links from being created when re-running the script multiple times.
+
 ---
-Reference Hardware Configuration
-These scripts have been calibrated, tested, and validated on the following hardware architecture:
-Chassis / Motherboard: HP Z4 G4 Workstation (Intel C422 Chipset, UEFI BIOS)
-Processor: Intel Xeon W-2140B (Skylake-W, 8 cores / 16 threads, hardware `ioat` DMA engine support)
-Graphics Card: NVIDIA Quadro M4000 (8 GB GDDR5, Maxwell GM204GL architecture, PCI ID `10de:13f1`)
-Monitor: ASUS PB278 running at native QHD `2560x1440` resolution
-Locale & Keyboard: French / Swiss French (`fr_FR.UTF-8` locale with `ch fr` keyboard layout in X11 and SDDM)
+
+## Included Features
+
+* **Core System & Performance**:
+  * Kernel tuning (`sysctl`) optimized for graphical workstations (scheduler preemption, X11/IPC shared memory, local stream sockets).
+  * CPU microcode updates (Intel Xeon/Core or AMD).
+  * Quiet startup and shutdown (*Silent Boot*) featuring a high-resolution **SGI** splash screen.
+* **Graphics Stack & Binary Compatibility**:
+  * Automated installation of **NVIDIA** drivers (Latest Production, Legacy 580, or Legacy 470 for Maxwell/Kepler Quadro cards + matching `linux-nvidia-libs`), **AMD** (`amdgpu`), or **Intel** (`i915kms`).
+  * Full **Linuxulator (Rocky Linux 9 / `linux_base-rl9`)** setup, including Motif, GTK2/GTK3, OpenGL/GLX, and targeted ELF branding (`brandelf -t Linux`)[cite: 1].
+  * Fail-safe mechanism: installs **SDDM** (with a custom SGI IRIX theme) alongside a fallback **XFCE4** desktop environment.
+* **Full MaXX Interactive Desktop v2.2.0 Calibration**:
+  * Pre-compiled SGI color schemes and font palettes (`IndigoMagic`, `Base`) using `tradcpp` for authentic Motif/ViewKit rendering[cite: 1].
+  * Classic SGI red cursor theme (`redSGI`)[cite: 1].
+  * Native integration of SGI system utilities: `tellsystem` (`hinv` powered by `dmidecode`/`lspci`/`lsusb`), `tellversion`, `tellgpu` (`nvidia-smi`), `gr_osview2` (`xosview2`), `winterm`, and `adminterm`[cite: 1].
+  * Seamless application wrappers linking the SGI *Toolchest* to native FreeBSD applications: Firefox, Thunderbird, LibreOffice (forced into classic X11/Motif SGI look via `SAL_USE_VCLPLUGIN=gen`), GIMP, Inkscape, VLC, Thunar, Ristretto, Mousepad, Xpdf, FileZilla, DSBMixer, CUPS, and OctoPkg[cite: 1].
+
 ---
-Key Engineering & Technical Decisions
-Running a rock-solid X11/Motif desktop on FreeBSD 15.1-RELEASE with an NVIDIA Maxwell GPU required solving several critical kernel and userland challenges:
-1. NVIDIA Graphics Stability & Eliminating Kernel Panics (`trap_pfault`)
-Strict 470 Driver Branch (`nvidia-driver-470`): While newer branches (such as 580) officially list Maxwell support, the legacy 470 production branch is completely free of GSP (GPU System Processor) firmware logic (which only exists on Turing/RTX and newer cards). Forcing GSP parameters (`EnableGpuFirmware=1`) on Maxwell hardware causes an immediate null-pointer dereference and kernel panic when starting the X server.
-No `nvidia-drm-kmod`: On FreeBSD 15.1, the LinuxKPI DRM wrapper (`nvidia-drm-kmod`) can trigger a kernel page fault (`trap_pfault`) as soon as SDDM probes `/dev/dri/renderD128`. Since MaXX Interactive Desktop and XFCE are pure X11 environments, Xorg communicates directly with the GPU via `nvidia.ko` and `nvidia-modeset.ko` (`nvidia-kmod-470`), ensuring 100% stability without DRM overhead.
-QHD Resolution Lock (`2560x1440`): Configured `/usr/local/etc/X11/xorg.conf.d/10-nvidia.conf` with `NoMaxResolutionCheck` and explicit `MetaModes` to prevent the driver from defaulting to unsupported 4K timings on the 27" ASUS monitor.
-2. UEFI Framebuffer & SGI Boot/Shutdown Splash Screen
-Diagonal/Skewed Image Fix: Although the console framebuffer runs at `2560x1440` (`efi_max_resolution="1440p"`), the HP Z4 G4 UEFI GOP/vt splash renderer expects a strict `1920x1080` stride during early boot.
-Automated ImageMagick Pipeline: The base script automatically fetches the SGI boot artwork and converts it into a 32-bit RGBA PNG (`png32:`) scaled to `1920x1080`, enabling both boot (`splash=`) and poweroff (`shutdown_splash=`) visual screens alongside silent boot (`boot_mute="YES"`).
-3. Linuxulator (Rocky Linux 9) & MaXX Octane 2.2.0 Tuning
-ELF Binary Branding: Automatically identifies and brands (`brandelf -t Linux`) all true 64-bit ELF binaries inside `/compat/linux/opt/MaXX` without corrupting shell or Perl scripts.
-Legacy `ncurses` v5 Compatibility: Creates required symbolic links from Rocky Linux 9 (`linux-rl9`) `libncurses.so.6` and `libtinfo.so.6` to `.so.5` inside the Linuxulator environment.
-X11 Fonts & Preprocessor (`tradcpp`): Installs mandatory Motif/SGI bitmap fonts (`font-bh-lucidatypewriter`, `font-misc-misc`, `font-adobe`) and bridges FreeBSD's native `tradcpp` and `xrdb` into `/compat/linux/usr/bin/cpp` so Motif `.Xresources` load cleanly without syntax errors.
-Native FreeBSD Toolchest Wrappers: Replaces hardcoded Linux scripts in the SGI Toolchest (`WEBBROWSER`, `EMAILCLIENT`, `MEDIAVIEWER`, `gr_osview2`, `Restart`, `Shutdown`) with native FreeBSD launchers (`firefox`, `thunderbird`, `vlc`, `btop`, and passwordless `sudo` power hooks).
+
+## Prerequisites
+
+1. A fresh base installation of **FreeBSD 15.1-RELEASE** (`amd64` architecture)[cite: 1, 2].
+2. An active Internet connection.
+3. A standard user account already created (defaults to `administrateur`, which will automatically be added to the `wheel`, `operator`, and `video` groups)[cite: 2].
+
 ---
-Repository Structure
-File	Description
-`install-base.sh`	Phase 1: Sets up `sudo`, `sshd` root access, silent UEFI boot, SGI boot/shutdown splash screens, Intel microcode, `linux-rl9`, CUPS/USB rules, PipeWire audio, NVIDIA 470 stack, XFCE fallback desktop, and SDDM with the custom `sgi_irix` theme.
-`install-maxx-interactive.sh`	Phase 2: Installs X11/Motif fonts, configures Linuxulator `ncurses5` symlinks, downloads/extracts MaXX Desktop Octane 2.2.0, brands ELF binaries, sets up the classic `redSGI` cursor, deploys FreeBSD Toolchest wrappers, and registers the SDDM session.
-`myfirstdesktop.jpg`	Live screenshot of the HP Z4 G4 workstation running MaXX Interactive Desktop (`5Dwm`) on FreeBSD 15.1-RELEASE.
-`sgi_desktop.jpg`	High-resolution SGI IRIX wallpaper used for both the SDDM login screen and the MaXX desktop background.
-`SGI_splash.jpg`	Silicon Graphics logo used to generate the 32-bit RGBA UEFI boot and shutdown splash screen.
----
-Deployment Guide
-Prerequisites
-Perform a fresh installation of FreeBSD 15.1-RELEASE (UEFI mode, ZFS or UFS).
-Create a standard user named `administrateur` and add it to the `wheel`, `operator`, and `video` groups.
-Log in as `root` and update the base system before running the scripts:
+
+## Installation
+
+Log in as `root` on your freshly installed FreeBSD system, clone the repository, and run the unified installer:
+
 ```sh
-freebsd-update fetch install
-reboot
-```
-Phase 1: Base System, NVIDIA 470 & SDDM Setup
-Run the first script as `root`:
-```sh
-chmod +x install-base.sh
-./install-base.sh
-reboot
-```
-Upon reboot, you will see the centered SGI splash screen followed by the SDDM login manager themed in SGI IRIX colors at `2560x1440`.
-Phase 2: MaXX Interactive Desktop Installation
-Log in via SSH (PuTTY) or a local terminal as `root` and execute the second script:
-```sh
-chmod +x install-maxx-interactive.sh
-./install-maxx-interactive.sh
-```
-Once completed, select "MaXX Interactive Desktop" from the SDDM session menu at the top left and log in as `administrateur`.
----
-Credits & Acknowledgments
-MaXX Interactive Desktop by Eric Masson and the MaXX team for preserving and modernizing the SGI IRIX `5Dwm` and Indigo Magic Desktop experience.
-The FreeBSD Project for the rock-solid 15.1-RELEASE kernel and Linuxulator compatibility layer.
-License
-The installation scripts and configuration wrappers in this repository are released under the MIT License.
-Silicon Graphics, IRIX, Indigo Magic, and the SGI cube logo are registered trademarks of their respective owners. MaXX Interactive Desktop binaries are subject to their own respective license terms.
+pkg install -y git curl wget
+git clone [https://github.com/msartor99/FreeBSD15-Maxxdesktop.git](https://github.com/msartor99/FreeBSD15-Maxxdesktop.git)
+cd FreeBSD15-Maxxdesktop
+chmod +x install-freebsd-maxx.sh
+./install-freebsd-maxx.sh
