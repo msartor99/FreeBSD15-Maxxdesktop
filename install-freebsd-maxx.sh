@@ -1,38 +1,38 @@
 #!/bin/sh
 # ==============================================================================
-# SCRIPT UNIFIE : install-freebsd-maxx.sh (COMPLET, RESILIENT & 100% IDEMPOTENT)
-# TARGET OS     : FreeBSD 15.1-RELEASE (POSIX /bin/sh)
-# PURPOSE       : Base Workstation, X11, GPU, SDDM & MaXX Interactive Desktop 2.2
-# REPOS         : https://github.com/msartor99/FreeBSD15-Maxxdesktop
+# UNIFIED SCRIPT : install-freebsd-maxx.sh (COMPLETE, RESILIENT & IDEMPOTENT)
+# TARGET OS      : FreeBSD 15.1-RELEASE (POSIX /bin/sh)
+# PURPOSE        : Base Workstation, X11, GPU, SDDM & MaXX Interactive Desktop 2.2
+# REPO           : https://github.com/msartor99/FreeBSD15-Maxxdesktop
 # ==============================================================================
 
 set -e
 
 if [ "$(id -u)" -ne 0 ]; then
-    echo "ERREUR: Ce script doit etre execute en tant que root."
+    echo "ERROR: Root privileges required. Please execute this script as root."
     exit 1
 fi
 
 BACKTITLE="MaXX Desktop SGI - FreeBSD 15.1 Workstation Installer"
 
-# Fonction d'installation unitaire resiliente (evite l'annulation globale de pkg)
+# Resilient atomic package installer (prevents bulk pkg transaction rollbacks)
 install_pkgs() {
     for pkg_name in "$@"; do
         if pkg info -e "$pkg_name" >/dev/null 2>&1; then
-            echo "   [OK] $pkg_name est deja installe."
+            echo "   [OK] $pkg_name is already installed."
         else
-            printf "   [+] Installation de %s... " "$pkg_name"
+            printf "   [+] Installing %s... " "$pkg_name"
             if env ASSUME_ALWAYS_YES=YES pkg install -y "$pkg_name" >/dev/null 2>&1; then
                 echo "OK"
             else
-                echo "ABSENT/IGNORE (non disponible dans le depot)"
+                echo "SKIPPED (not available in repository)"
             fi
         fi
     done
 }
 
 # ==============================================================================
-# 0. AUTO-DETECTION ET INTERFACE INTERACTIVE (BSDDIALOG)
+# 0. AUTO-DETECTION & INTERACTIVE WIZARD (BSDDIALOG)
 # ==============================================================================
 SYS_KBD=$(sysrc -n keymap 2>/dev/null | grep -Eo '^[a-z]{2}' || echo "ch")
 DEFAULT_LANG="fr_CH.UTF-8"
@@ -48,27 +48,27 @@ case "$SYS_KBD" in
     us) DEFAULT_LANG="en_US.UTF-8"; DEFAULT_X11_KBD="us" ;;
 esac
 
-MSG_DISCLAIMER="AVERTISSEMENT LEGAL\n\nCe script configure integralement FreeBSD 15.1 (Noyau, X11, GPU, Linuxulator, SDDM et MaXX Interactive Desktop v2.2.0).\nIl est totalement idempotent et fourni 'tel quel'.\n\nVoulez-vous continuer ?"
-if ! bsddialog --backtitle "$BACKTITLE" --title "Avertissement" --yesno "$MSG_DISCLAIMER" 13 75; then
+MSG_DISCLAIMER="LEGAL DISCLAIMER\n\nThis script deeply configures your FreeBSD 15.1 system (Kernel, X11, GPU, Linuxulator, SDDM, and MaXX Interactive Desktop v2.2.0).\nIt is 100% idempotent and provided 'as is', without any warranty.\n\nDo you accept to proceed?"
+if ! bsddialog --backtitle "$BACKTITLE" --title "Warning" --yesno "$MSG_DISCLAIMER" 13 75; then
     clear
-    echo "Installation annulee par l'utilisateur."
+    echo "Installation cancelled by user."
     exit 1
 fi
 
-USER_LOCALE=$(bsddialog --backtitle "$BACKTITLE" --title "Langue & Region" --default-item "$DEFAULT_LANG" --menu "Selectionnez la langue du systeme :" 15 65 6 \
-    "fr_CH.UTF-8" "Francais (Suisse)" \
-    "fr_FR.UTF-8" "Francais (France)" \
+USER_LOCALE=$(bsddialog --backtitle "$BACKTITLE" --title "Language & Region" --default-item "$DEFAULT_LANG" --menu "Select your system language and region:" 15 65 6 \
     "en_US.UTF-8" "English (US)" \
     "en_GB.UTF-8" "English (UK)" \
+    "fr_CH.UTF-8" "French (Switzerland)" \
+    "fr_FR.UTF-8" "French (France)" \
     "de_DE.UTF-8" "German (Germany)" \
     "de_CH.UTF-8" "German (Switzerland)" 3>&1 1>&2 2>&3) || { clear; exit 1; }
 
-X11_KBD=$(bsddialog --backtitle "$BACKTITLE" --title "Disposition Clavier X11" --default-item "$DEFAULT_X11_KBD" --menu "Selectionnez votre clavier X11 :" 14 65 5 \
-    "ch-fr" "Suisse Romand (QWERTZ)" \
-    "ch-de" "Suisse Allemand (QWERTZ)" \
-    "fr"    "Francais (AZERTY)" \
+X11_KBD=$(bsddialog --backtitle "$BACKTITLE" --title "Keyboard Layout" --default-item "$DEFAULT_X11_KBD" --menu "Select your X11 Keyboard Layout:" 14 65 5 \
     "us"    "US English (QWERTY)" \
-    "de"    "Allemand (QWERTZ)" 3>&1 1>&2 2>&3) || { clear; exit 1; }
+    "ch-fr" "Swiss French (QWERTZ)" \
+    "ch-de" "Swiss German (QWERTZ)" \
+    "fr"    "French (AZERTY)" \
+    "de"    "German (QWERTZ)" 3>&1 1>&2 2>&3) || { clear; exit 1; }
 
 case "$X11_KBD" in
     *-*) XKBLAYOUT="${X11_KBD%%-*}"; XKBVARIANT="${X11_KBD##*-}" ;;
@@ -76,50 +76,50 @@ case "$X11_KBD" in
 esac
 
 while true; do
-    TARGET_USER=$(bsddialog --backtitle "$BACKTITLE" --title "Utilisateur Cible" --inputbox "Entrez le nom de l'utilisateur pour MaXX Desktop :" 10 65 "administrateur" 3>&1 1>&2 2>&3) || { clear; exit 1; }
+    TARGET_USER=$(bsddialog --backtitle "$BACKTITLE" --title "Target User" --inputbox "Enter the target username (who will use MaXX Desktop):" 10 65 "administrateur" 3>&1 1>&2 2>&3) || { clear; exit 1; }
     if [ -n "$TARGET_USER" ] && id "$TARGET_USER" >/dev/null 2>&1; then
         break
     else
-        bsddialog --backtitle "$BACKTITLE" --title "Erreur" --msgbox "L'utilisateur '$TARGET_USER' n'existe pas sur ce systeme." 8 55
+        bsddialog --backtitle "$BACKTITLE" --title "Error" --msgbox "User '$TARGET_USER' does not exist. Please create the user first." 8 55
     fi
 done
 
 USER_HOME=$(pw usershow "$TARGET_USER" | awk -F: '{print $9}')
 [ -z "$USER_HOME" ] && USER_HOME="/home/${TARGET_USER}"
 
-CPU_CHOICE=$(bsddialog --backtitle "$BACKTITLE" --title "Microcode CPU" --default-item "2" --menu "Selectionnez le fabricant du processeur :" 11 55 2 \
+CPU_CHOICE=$(bsddialog --backtitle "$BACKTITLE" --title "CPU Microcode" --default-item "2" --menu "Select your processor vendor:" 11 55 2 \
     "1" "AMD" \
     "2" "Intel (Xeon / Core)" 3>&1 1>&2 2>&3) || { clear; exit 1; }
 
-GPU_CHOICE=$(bsddialog --backtitle "$BACKTITLE" --title "Carte Graphique (GPU)" --default-item "2" --menu "Selectionnez le fabricant du GPU :" 12 55 3 \
+GPU_CHOICE=$(bsddialog --backtitle "$BACKTITLE" --title "GPU Selection" --default-item "2" --menu "Select your graphics card vendor:" 12 55 3 \
     "1" "AMD (amdgpu)" \
-    "2" "NVIDIA (Proprietaire)" \
+    "2" "NVIDIA (Proprietary)" \
     "3" "Intel (i915kms)" 3>&1 1>&2 2>&3) || { clear; exit 1; }
 
 NV_VER="3"
 if [ "$GPU_CHOICE" = "2" ]; then
-    NV_VER=$(bsddialog --backtitle "$BACKTITLE" --title "Pilote NVIDIA" --default-item "3" --menu "Selectionnez la branche du pilote NVIDIA :" 12 65 3 \
-        "1" "Production (Derniere version)" \
-        "2" "Branche Legacy 580" \
-        "3" "Branche Legacy 470 (Quadro M4000 / Maxwell / Kepler)" 3>&1 1>&2 2>&3) || { clear; exit 1; }
+    NV_VER=$(bsddialog --backtitle "$BACKTITLE" --title "NVIDIA Driver Version" --default-item "3" --menu "Select the NVIDIA driver branch:" 12 65 3 \
+        "1" "Latest Production Driver" \
+        "2" "Legacy 580 Series" \
+        "3" "Legacy 470 Series (Quadro M4000 / Maxwell / Kepler)" 3>&1 1>&2 2>&3) || { clear; exit 1; }
 fi
 
-SPLASH_RES=$(bsddialog --backtitle "$BACKTITLE" --title "Resolution Moniteur" --default-item "2560x1440" --menu "Selectionnez la resolution native de votre ecran :" 14 65 4 \
+SPLASH_RES=$(bsddialog --backtitle "$BACKTITLE" --title "Monitor Resolution" --default-item "2560x1440" --menu "Select your monitor's native resolution:" 14 65 4 \
     "1920x1080" "Full HD (16:9)" \
     "1920x1200" "WUXGA (16:10)" \
-    "2560x1440" "QHD / 2K (16:9 - ex: ASUS PB278)" \
+    "2560x1440" "QHD / 2K (16:9 - 27 inch)" \
     "3840x2160" "4K UHD (16:9)" 3>&1 1>&2 2>&3) || SPLASH_RES="2560x1440"
 
 clear
 echo "=============================================================================="
-echo " DEPLOIEMENT INTEGRAL : SYSTEME DE BASE & MAXX INTERACTIVE DESKTOP v2.2.0"
-echo " Utilisateur : $TARGET_USER | Locale : $USER_LOCALE | Clavier : $XKBLAYOUT $XKBVARIANT"
+echo " FULL DEPLOYMENT : BASE WORKSTATION & MAXX INTERACTIVE DESKTOP v2.2.0"
+echo " Target User : $TARGET_USER | Locale : $USER_LOCALE | Keyboard : $XKBLAYOUT $XKBVARIANT"
 echo "=============================================================================="
 
 # ==============================================================================
-# 1. SERVICES DE BASE, DEPOTS PKG & COUPE-CIRCUIT XORG / SDDM
+# 1. SYSTEM DAEMONS, PKG REPOSITORIES & XORG / SDDM FAIL-SAFE
 # ==============================================================================
-echo "-> [1/15] Activation des daemons systeme et synchronisation pkg..."
+echo "-> [1/15] Enabling system daemons and syncing pkg repositories..."
 sysrc dbus_enable="YES"
 sysrc sddm_enable="YES"
 sysrc linux_enable="YES"
@@ -131,11 +131,11 @@ sysrc cupsd_enable="YES"
 env ASSUME_ALWAYS_YES=YES pkg bootstrap -f
 env ASSUME_ALWAYS_YES=YES pkg update -f
 
-echo "-> [2/15] Installation du socle critique X11, SDDM et XFCE (Fallback)..."
+echo "-> [2/15] Installing critical X11 core, SDDM, and XFCE (Fallback)..."
 install_pkgs xorg xprop xorg-apps dbus sddm xfce xfce4-goodies
 
 if ! pkg info -e sddm >/dev/null 2>&1; then
-    echo "ERREUR CRITIQUE: L'installation de Xorg ou SDDM a echoue."
+    echo "CRITICAL ERROR: Xorg or SDDM failed to install. Aborting to prevent black screen."
     exit 1
 fi
 
@@ -143,24 +143,24 @@ mkdir -p /usr/local/share/xsessions
 cat << 'EOF' > /usr/local/share/xsessions/xfce.desktop
 [Desktop Entry]
 Name=XFCE (Fallback)
-Comment=Environnement de bureau XFCE4 de secours
+Comment=Fallback XFCE4 Desktop Environment
 Exec=/usr/local/bin/startxfce4
 Type=Application
 EOF
 
 # ==============================================================================
-# 2. POLICES X11/SGI, OUTILS SYSTEME ET APPLICATIONS DU TOOLCHEST (ISOLES)
+# 2. X11/SGI FONTS, SYSTEM UTILITIES & TOOLCHEST APPLICATIONS (ISOLATED)
 # ==============================================================================
-echo "-> [3/15] Installation unitaire des polices X11/Motif, outils et applications..."
+echo "-> [3/15] Installing X11/Motif fonts, system utilities, and desktop applications..."
 
-# 2.1 Polices X11, SGI et UTF-8
+# 2.1 X11, SGI & UTF-8 Fonts
 install_pkgs \
     xorg-fonts font-alias font-misc-misc font-bh-75dpi font-bh-100dpi \
     font-bh-lucidatypewriter-75dpi font-bh-lucidatypewriter-100dpi \
     font-adobe-75dpi font-adobe-100dpi font-ibm-type1 font-dec-misc \
     font-sun-misc font-cursor-misc dejavu noto-basic noto-sans
 
-# 2.2 Outils X11, compilateur tradcpp et utilitaires systeme
+# 2.2 X11 Tools, tradcpp preprocessor, and hardware/system utilities
 install_pkgs \
     tradcpp xrdb xset xsetroot xwininfo xkill setxkbmap xhost xclock xfontsel xcalc \
     mkfontscale mkfontdir feh dunst alttab scrot xterm xscreensaver \
@@ -171,7 +171,7 @@ if ! pkg info -e ImageMagick7 >/dev/null 2>&1 && ! pkg info -e ImageMagick6 >/de
     pkg install -y ImageMagick7 || pkg install -y ImageMagick6 || true
 fi
 
-# 2.3 Applications Bureautiques, Internet, Multimedia, Imprimantes & Systeme
+# 2.3 Desktop, Office, Web, Multimedia, Printing & System Applications
 install_pkgs \
     firefox thunderbird vlc pavucontrol dsbmixer ristretto mousepad thunar xfe \
     gnome-system-monitor xpdf atril-lite atril gimp inkscape dia libreoffice \
@@ -182,9 +182,9 @@ service dbus restart 2>/dev/null || service dbus start 2>/dev/null || true
 service cupsd restart 2>/dev/null || service cupsd start 2>/dev/null || true
 
 # ==============================================================================
-# 3. MICROCODE CPU, PILOTE GPU & LINUXULATOR (ROCKY LINUX 9)
+# 3. CPU MICROCODE, GPU DRIVERS & LINUXULATOR (ROCKY LINUX 9)
 # ==============================================================================
-echo "-> [4/15] Configuration du microcode CPU, du pilote GPU et de Linuxulator..."
+echo "-> [4/15] Configuring CPU microcode, GPU drivers, and Linuxulator..."
 if [ "$CPU_CHOICE" = "1" ]; then
     install_pkgs cpu-microcode-amd
     sysrc -f /boot/loader.conf cpu_microcode_load="YES"
@@ -196,7 +196,7 @@ else
 fi
 sysrc microcode_update_enable="YES"
 
-# Montages fstab idempotents pour Linuxulator et /tmp
+# Idempotent fstab mounts for Linuxulator and /tmp
 add_fstab() {
     grep -qE "[[:space:]]$2[[:space:]]" /etc/fstab || printf "%s\t%s\t%s\t%s\t%s\t%s\n" "$1" "$2" "$3" "$4" "$5" "$6" >> /etc/fstab
 }
@@ -263,9 +263,9 @@ install_pkgs \
 [ -n "$NV_LIN" ] && install_pkgs "$NV_LIN"
 
 # ==============================================================================
-# 4. OPTIMISATION NOYAU, CLAVIER X11, COMPTES & PRIVILEGES SUDO
+# 4. KERNEL TUNING, X11 KEYBOARD, USER GROUPS & SUDO PRIVILEGES
 # ==============================================================================
-echo "-> [5/15] Optimisation sysctl, configuration clavier X11 et privileges..."
+echo "-> [5/15] Tuning kernel sysctl parameters, X11 keyboard, and user privileges..."
 sysrc -f /boot/loader.conf aio_load="YES"
 sysrc rc_startmsgs="NO"
 
@@ -332,9 +332,9 @@ echo "defaultclass=$CLASS_NAME" > /etc/adduser.conf
 pw usermod "$TARGET_USER" -L "$CLASS_NAME" 2>/dev/null || true
 
 # ==============================================================================
-# 5. UNIFICATION /TMP ET COMPATIBILITE LINUXULATOR (NCURSES V5)
+# 5. UNIFYING /TMP & LINUXULATOR COMPATIBILITY LINKS (NCURSES V5)
 # ==============================================================================
-echo "-> [6/15] Unification de /compat/linux/tmp, /usr/tmp -> /tmp et ncurses..."
+echo "-> [6/15] Unifying /compat/linux/tmp, /usr/tmp -> /tmp, and ncurses symlinks..."
 rm -rf /compat/linux/tmp /compat/linux/usr/tmp /usr/tmp
 ln -shf /tmp /compat/linux/tmp
 ln -shf /tmp /compat/linux/usr/tmp
@@ -350,9 +350,9 @@ ln -sf libtinfo.so.6 /compat/linux/usr/lib64/libtinfo.so.5
 ln -sf libncurses.so.6 /compat/linux/usr/lib64/libncurses.so.5
 
 # ==============================================================================
-# 6. TELECHARGEMENT (AVEC CACHE) ET EXTRACTION DE MAXX DESKTOP OCTANE 2.2.0
+# 6. DOWNLOADING (WITH CACHE) & EXTRACTING MAXX DESKTOP OCTANE 2.2.0
 # ==============================================================================
-echo "-> [7/15] Verification et extraction de MaXX Desktop Octane 2.2.0..."
+echo "-> [7/15] Verifying and extracting MaXX Desktop Octane 2.2.0..."
 MAXX_FILENAME="MaXX-Desktop-v2.2.0-LINUX-x86_64-tar.gz"
 MAXX_TAR="${USER_HOME}/${MAXX_FILENAME}"
 MAXX_URL="https://s3.ca-central-1.amazonaws.com/cdn.maxxinteractive.com/maxx-desktop-installer/${MAXX_FILENAME}"
@@ -368,28 +368,28 @@ if [ -f "$MAXX_TAR" ] && [ ! -s "$MAXX_TAR" ]; then
 fi
 
 if [ ! -f "$MAXX_TAR" ]; then
-    echo "   Telechargement de ${MAXX_FILENAME} (233 Mo)..."
+    echo "   Downloading ${MAXX_FILENAME} (233 MB)..."
     wget -c -O "$MAXX_TAR" "$MAXX_URL" || fetch -o "$MAXX_TAR" "$MAXX_URL"
     chown "${TARGET_USER}:${TARGET_USER}" "$MAXX_TAR"
 fi
 
 if [ ! -x /compat/linux/opt/MaXX/bin64/5Dwm ]; then
-    echo "   Extraction de MaXX Desktop dans /compat/linux/opt/MaXX..."
+    echo "   Extracting MaXX Desktop into /compat/linux/opt/MaXX..."
     rm -rf /compat/linux/opt/MaXX /opt/MaXX
     tar -xzf "$MAXX_TAR" -C /compat/linux/opt
 fi
 ln -shf /compat/linux/opt/MaXX /opt/MaXX
 
 # ==============================================================================
-# 7. SPLASH SCREENS SGI (BOOT UEFI, SGILOGO, SDDM THEME & FOND D'ECRAN BUREAU)
+# 7. SGI SPLASH SCREENS (UEFI BOOT, SGILOGO, SDDM THEME & DESKTOP WALLPAPER)
 # ==============================================================================
-echo "-> [8/15] Calibration des visuels SGI (Boot UEFI, sgilogo.png, SDDM et Bureau en ${SPLASH_RES})..."
+echo "-> [8/15] Calibrating SGI visuals (UEFI Boot, sgilogo.png, SDDM, and Wallpaper at ${SPLASH_RES})..."
 IMG_DIR="/boot/images"
 GITHUB_RAW_15="https://raw.githubusercontent.com/msartor99/FreeBSD15-Maxxdesktop/main"
 GITHUB_RAW_LEGACY="https://raw.githubusercontent.com/msartor99/FreeBSD-Maxxdesktop/main"
 mkdir -p "$IMG_DIR"
 
-# Sauvegarde idempotente de freebsd-logo-rev.png d'origine (effectuee une seule fois)
+# Idempotent backup of original freebsd-logo-rev.png (executed only once)
 if [ -f "$IMG_DIR/freebsd-logo-rev.png" ] && [ ! -f "$IMG_DIR/freebsd-logo-rev.png.bak" ]; then
     cp -p "$IMG_DIR/freebsd-logo-rev.png" "$IMG_DIR/freebsd-logo-rev.png.bak"
 fi
@@ -403,7 +403,7 @@ for repo_api in \
     done
 done
 
-# Telechargement explicite de sgilogo.png depuis GitHub
+# Explicit download of sgilogo.png from GitHub
 if [ ! -s "$IMG_DIR/sgilogo.png" ]; then
     fetch -q -o "$IMG_DIR/sgilogo.png" "${GITHUB_RAW_15}/sgilogo.png" 2>/dev/null || \
     fetch -q -o "$IMG_DIR/sgilogo.png" "${GITHUB_RAW_LEGACY}/sgilogo.png" 2>/dev/null || \
@@ -452,7 +452,7 @@ if [ -n "$IM_CMD" ]; then
     fi
 fi
 
-# Remplacement de freebsd-logo-rev.png par sgilogo.png (avec fallback sur sgi_splash.png)
+# Replace freebsd-logo-rev.png with sgilogo.png (fallback to sgi_splash.png)
 if [ -s "$IMG_DIR/sgilogo.png" ]; then
     cp -f "$IMG_DIR/sgilogo.png" "$IMG_DIR/freebsd-logo-rev.png"
     chmod 644 "$IMG_DIR/freebsd-logo-rev.png"
@@ -461,7 +461,7 @@ elif [ -s "$IMG_DIR/sgi_splash.png" ]; then
     chmod 644 "$IMG_DIR/freebsd-logo-rev.png"
 fi
 
-# Configuration SDDM Theme SGI_IRIX
+# Configure SDDM Theme SGI_IRIX
 if [ -s "$IMG_DIR/sgi_desktop.jpg" ]; then
     SDDM_BASE="/usr/local/share/sddm/themes"
     if [ -d "$SDDM_BASE/maldives" ]; then
@@ -480,7 +480,7 @@ EOF
     fi
 fi
 
-# Nettoyage et configuration idempotente de /boot/loader.conf
+# Idempotent cleanup and setup of /boot/loader.conf
 for old_var in splash_bmp_load bitmap_load bitmap_name bitmap_type splash_image efi_max_resolution autoboot_delay; do
     sysrc -f /boot/loader.conf -x "$old_var" 2>/dev/null || true
 done
@@ -495,9 +495,9 @@ sysrc -f /boot/loader.conf shutdown_splash="/boot/images/sgi_splash.png"
 sysrc splash_changer_enable="YES"
 
 # ==============================================================================
-# 8. LDCONFIG, GDK-PIXBUF, MIME & TATOUAGE ELF (BRANDELF LINUX)
+# 8. LDCONFIG, GDK-PIXBUF, MIME CACHES & ELF BRANDING (BRANDELF LINUX)
 # ==============================================================================
-echo "-> [9/15] Configuration ldconfig, GDK-Pixbuf, MIME et tatouage ELF..."
+echo "-> [9/15] Configuring ldconfig, GDK-Pixbuf, MIME caches, and Linux ELF branding..."
 mkdir -p /compat/linux/etc/ld.so.conf.d
 printf "/opt/MaXX/lib64\n/opt/MaXX/lib\n" > /compat/linux/etc/ld.so.conf.d/maxx.conf
 /compat/linux/sbin/ldconfig 2>/dev/null || chroot /compat/linux /sbin/ldconfig 2>/dev/null || true
@@ -515,9 +515,9 @@ find /compat/linux/opt/MaXX/bin64 /compat/linux/opt/MaXX/bin /compat/linux/opt/M
 done
 
 # ==============================================================================
-# 9. PONTS SYSTEME, SONDES MATERIELLES HINV, POLICES SGI & TRADCPP
+# 9. SYSTEM BRIDGES, HINV HARDWARE PROBES, SGI FONTS & TRADCPP
 # ==============================================================================
-echo "-> [10/15] Creation des ponts systeme, sondes materielles SGI et tradcpp..."
+echo "-> [10/15] Creating system bridges, SGI hardware probes, and tradcpp links..."
 mkdir -p /compat/linux/usr/bin /compat/linux/usr/sbin /compat/linux/bin /compat/linux/lib
 
 chflags noschg /usr/bin/cpp 2>/dev/null || true
@@ -570,9 +570,9 @@ if [ -d /compat/linux/opt/MaXX/share/fonts ]; then
 fi
 
 # ==============================================================================
-# 10. CURSEUR SGI (redSGI) & PRE-COMPILATION DU THEME INDIGOMAGIC
+# 10. SGI RED CURSOR (redSGI) & PRE-COMPILING INDIGOMAGIC THEME
 # ==============================================================================
-echo "-> [11/15] Installation du curseur redSGI et pre-compilation IndigoMagic..."
+echo "-> [11/15] Installing redSGI cursor theme and pre-compiling IndigoMagic resources..."
 mkdir -p /usr/local/share/icons /usr/local/share/icons/default /usr/local/share/themes
 mkdir -p /compat/linux/usr/share/icons /compat/linux/usr/share/themes
 
@@ -710,9 +710,9 @@ Toolchest*fontList: -*-helvetica-bold-o-normal-*-14-*-*-*-*-*-iso8859-1
 EOF
 
 # ==============================================================================
-# 11. WRAPPERS APPLICATIONS NATIVES FREEBSD & OUTILS SGI
+# 11. NATIVE FREEBSD APPLICATION WRAPPERS & SGI SYSTEM TOOLS
 # ==============================================================================
-echo "-> [12/15] Generation inconditionnelle des wrappers FreeBSD et outils SGI..."
+echo "-> [12/15] Generating unconditional FreeBSD application wrappers and SGI tools..."
 
 for su_gui in qt-sudo gksu gksudo kdesu pkexec; do
     if [ -x "/usr/local/bin/$su_gui" ] && [ ! -f "/usr/local/bin/${su_gui}.orig" ]; then
@@ -787,7 +787,7 @@ create_wrapper "grecord"          "/usr/local/bin/pavucontrol"
 create_wrapper "Restart"          "/usr/local/bin/sudo /sbin/reboot"
 create_wrapper "Shutdown"         "/usr/local/bin/sudo /sbin/poweroff"
 
-# Creation inconditionnelle des wrappers pour les binaires appeles par system.chestrc
+# Unconditional wrappers for binaries invoked directly by system.chestrc
 for bin_app in xclock xfontsel dia thunderbird firefox vlc gimp inkscape; do
     rm -f "/compat/linux/usr/bin/$bin_app" "/compat/linux/opt/MaXX/bin64/$bin_app"
     cat > "/compat/linux/opt/MaXX/bin64/$bin_app" << EOF
@@ -1019,9 +1019,9 @@ chmod +x /compat/linux/opt/MaXX/bin64/gr_osview2
 cp -af /compat/linux/opt/MaXX/bin64/gr_osview2 /compat/linux/opt/MaXX/bin64/gr_osview
 
 # ==============================================================================
-# 12. CONFIGURATION DE SYSTEM.RUNTIME, XSESSION.DT ET PROFIL UTILISATEUR
+# 12. CONFIGURING SYSTEM.RUNTIME, XSESSION.DT & USER PROFILE
 # ==============================================================================
-echo "-> [13/15] Configuration de system.runtime, Xsession.dt et du profil de ${TARGET_USER}..."
+echo "-> [13/15] Configuring system.runtime, Xsession.dt, and user profile for ${TARGET_USER}..."
 
 grep -q "export MAXX_BIN" /compat/linux/opt/MaXX/etc/system.runtime || cat >> /compat/linux/opt/MaXX/etc/system.runtime << 'EOF'
 export MAXX_HOME="/opt/MaXX"
@@ -1089,9 +1089,9 @@ mkdir -p "${USER_HOME}/.icons" "${USER_HOME}/.config"
 ln -shf /opt/MaXX/share/ROX-Filer/ROX "${USER_HOME}/.icons/ROX"
 
 # ==============================================================================
-# 13. LANCEUR /USR/LOCAL/BIN/STARTMAXX ET SESSION SDDM
+# 13. /USR/LOCAL/BIN/STARTMAXX LAUNCHER & SDDM SESSION REGISTRATION
 # ==============================================================================
-echo "-> [14/15] Creation de /usr/local/bin/startmaxx et declaration SDDM..."
+echo "-> [14/15] Creating /usr/local/bin/startmaxx and registering SDDM session..."
 
 cat > /usr/local/bin/startmaxx << EOF
 #!/bin/sh
@@ -1121,12 +1121,12 @@ EOF
 printf "#!/bin/sh\nexec /usr/local/bin/startmaxx\n" > "${USER_HOME}/.xinitrc"
 chmod +x "${USER_HOME}/.xinitrc"
 
-echo "-> [15/15] Verification finale des permissions de ${USER_HOME}..."
+echo "-> [15/15] Verifying final ownership permissions on ${USER_HOME}..."
 chown -R "${TARGET_USER}:${TARGET_USER}" "${USER_HOME}"
 
 echo "=============================================================================="
-echo " INSTALLATION INTEGRALE TERMINEE AVEC SUCCES !"
-echo " Le systeme de base et MaXX Interactive Desktop v2.2.0 sont prets."
-echo " Executez 'reboot' pour demarrer sur l'ecran d'accueil SGI IRIX (SDDM)."
+echo " FULL INSTALLATION COMPLETED SUCCESSFULLY!"
+echo " Base Workstation and MaXX Interactive Desktop v2.2.0 are ready."
+echo " Run 'reboot' to start into the SGI IRIX login screen (SDDM)."
 echo "=============================================================================="
 exit 0
