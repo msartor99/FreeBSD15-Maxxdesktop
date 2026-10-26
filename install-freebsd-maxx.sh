@@ -1,9 +1,9 @@
 #!/bin/sh
 # ==============================================================================
-# SCRIPT UNIFIE : install-freebsd-maxx.sh (COMPLET & 100% IDEMPOTENT)
+# SCRIPT UNIFIE : install-freebsd-maxx.sh (COMPLET, RESILIENT & 100% IDEMPOTENT)
 # TARGET OS     : FreeBSD 15.1-RELEASE (POSIX /bin/sh)
 # PURPOSE       : Base Workstation, X11, GPU, SDDM & MaXX Interactive Desktop 2.2
-# REPOS         : https://github.com/msartor99/FreeBSD-Maxxdesktop
+# REPOS         : https://github.com/msartor99/FreeBSD15-Maxxdesktop
 # ==============================================================================
 
 set -e
@@ -14,6 +14,22 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 BACKTITLE="MaXX Desktop SGI - FreeBSD 15.1 Workstation Installer"
+
+# Fonction d'installation unitaire resiliente (evite l'annulation globale de pkg)
+install_pkgs() {
+    for pkg_name in "$@"; do
+        if pkg info -e "$pkg_name" >/dev/null 2>&1; then
+            echo "   [OK] $pkg_name est deja installe."
+        else
+            printf "   [+] Installation de %s... " "$pkg_name"
+            if env ASSUME_ALWAYS_YES=YES pkg install -y "$pkg_name" >/dev/null 2>&1; then
+                echo "OK"
+            else
+                echo "ABSENT/IGNORE (non disponible dans le depot)"
+            fi
+        fi
+    done
+}
 
 # ==============================================================================
 # 0. AUTO-DETECTION ET INTERFACE INTERACTIVE (BSDDIALOG)
@@ -116,7 +132,7 @@ env ASSUME_ALWAYS_YES=YES pkg bootstrap -f
 env ASSUME_ALWAYS_YES=YES pkg update -f
 
 echo "-> [2/15] Installation du socle critique X11, SDDM et XFCE (Fallback)..."
-pkg install -y xorg xprop xorg-apps dbus sddm xfce xfce4-goodies
+install_pkgs xorg xprop xorg-apps dbus sddm xfce xfce4-goodies
 
 if ! pkg info -e sddm >/dev/null 2>&1; then
     echo "ERREUR CRITIQUE: L'installation de Xorg ou SDDM a echoue."
@@ -133,30 +149,34 @@ Type=Application
 EOF
 
 # ==============================================================================
-# 2. POLICES X11/SGI, OUTILS SYSTEME ET APPLICATIONS DU TOOLCHEST
+# 2. POLICES X11/SGI, OUTILS SYSTEME ET APPLICATIONS DU TOOLCHEST (ISOLES)
 # ==============================================================================
-echo "-> [3/15] Installation des polices X11/Motif, utilitaires et applications..."
-pkg install -y \
+echo "-> [3/15] Installation unitaire des polices X11/Motif, outils et applications..."
+
+# 2.1 Polices X11, SGI et UTF-8
+install_pkgs \
     xorg-fonts font-alias font-misc-misc font-bh-75dpi font-bh-100dpi \
     font-bh-lucidatypewriter-75dpi font-bh-lucidatypewriter-100dpi \
     font-adobe-75dpi font-adobe-100dpi font-ibm-type1 font-dec-misc \
-    font-sun-misc font-cursor-misc dejavu noto-basic \
+    font-sun-misc font-cursor-misc dejavu noto-basic noto-sans
+
+# 2.2 Outils X11, compilateur tradcpp et utilitaires systeme
+install_pkgs \
     tradcpp xrdb xset xsetroot xwininfo xkill setxkbmap xhost xclock xfontsel xcalc \
     mkfontscale mkfontdir feh dunst alttab scrot xterm xscreensaver \
     wget curl bash sudo unzip libzip git htop btop python3 smartmontools \
-    mesa-demos dmidecode pciutils usbutils shared-mime-info \
+    mesa-demos dmidecode pciutils usbutils shared-mime-info
+
+if ! pkg info -e ImageMagick7 >/dev/null 2>&1 && ! pkg info -e ImageMagick6 >/dev/null 2>&1; then
+    pkg install -y ImageMagick7 || pkg install -y ImageMagick6 || true
+fi
+
+# 2.3 Applications Bureautiques, Internet, Multimedia, Imprimantes & Systeme
+install_pkgs \
     firefox thunderbird vlc pavucontrol dsbmixer ristretto mousepad thunar xfe \
-    gnome-system-monitor 2>/dev/null || true
-
-pkg install -y ImageMagick7 || pkg install -y ImageMagick6 || true
-
-for pkg_app in \
-    xpdf atril-lite gimp inkscape dia libreoffice \
-    galculator gucharmap catfish gnome-screenshot \
-    xfce4-screenshooter-plugin filezilla \
-    octopkg system-config-printer cups cups-filters; do
-    pkg install -y "$pkg_app" 2>/dev/null || true
-done
+    gnome-system-monitor xpdf atril-lite atril gimp inkscape dia libreoffice \
+    galculator gucharmap catfish gnome-screenshot xfce4-screenshooter-plugin \
+    filezilla octopkg system-config-printer cups cups-filters print-manager
 
 service dbus restart 2>/dev/null || service dbus start 2>/dev/null || true
 service cupsd restart 2>/dev/null || service cupsd start 2>/dev/null || true
@@ -166,11 +186,11 @@ service cupsd restart 2>/dev/null || service cupsd start 2>/dev/null || true
 # ==============================================================================
 echo "-> [4/15] Configuration du microcode CPU, du pilote GPU et de Linuxulator..."
 if [ "$CPU_CHOICE" = "1" ]; then
-    pkg install -y cpu-microcode-amd
+    install_pkgs cpu-microcode-amd
     sysrc -f /boot/loader.conf cpu_microcode_load="YES"
     sysrc -f /boot/loader.conf cpu_microcode_name="/boot/firmware/amd-ucode.bin"
 else
-    pkg install -y cpu-microcode-intel
+    install_pkgs cpu-microcode-intel
     sysrc -f /boot/loader.conf cpu_microcode_load="YES"
     sysrc -f /boot/loader.conf cpu_microcode_name="/boot/firmware/intel-ucode.bin"
 fi
@@ -201,16 +221,16 @@ case "$GPU_CHOICE" in
             3) NV_BASE="nvidia-driver-470"; NV_LIN="linux-nvidia-libs-470" ;;
             *) NV_BASE="nvidia-driver";     NV_LIN="linux-nvidia-libs" ;;
         esac
-        pkg install -y "$NV_BASE" nvidia-settings nvidia-xconfig
+        install_pkgs "$NV_BASE" nvidia-settings nvidia-xconfig
         [ -x /usr/local/bin/nvidia-xconfig ] && /usr/local/bin/nvidia-xconfig >/dev/null 2>&1 || true
         ;;
     3)
         KMOD_DRIVER="i915kms"
-        pkg install -y drm-kmod libva-intel-driver
+        install_pkgs drm-kmod libva-intel-driver
         ;;
     *)
         KMOD_DRIVER="amdgpu"
-        pkg install -y drm-kmod
+        install_pkgs drm-kmod
         ;;
 esac
 
@@ -220,7 +240,7 @@ case " $CURRENT_KMODS " in
     *) sysrc kld_list+="$KMOD_DRIVER" ;;
 esac
 
-for lpkg in \
+install_pkgs \
     linux_base-rl9 \
     linux-rl9-xorg-libs \
     linux-rl9-libjpeg-turbo \
@@ -238,10 +258,9 @@ for lpkg in \
     linux-rl9-dbus-libs \
     linux-rl9-libGLU \
     linux-rl9-libglvnd \
-    linux-rl9-motif \
-    $NV_LIN; do
-    [ -n "$lpkg" ] && pkg install -y "$lpkg" 2>/dev/null || true
-done
+    linux-rl9-motif
+
+[ -n "$NV_LIN" ] && install_pkgs "$NV_LIN"
 
 # ==============================================================================
 # 4. OPTIMISATION NOYAU, CLAVIER X11, COMPTES & PRIVILEGES SUDO
@@ -296,6 +315,7 @@ pw groupmod video -m sddm 2>/dev/null || true
 pw groupmod video -m "$TARGET_USER" 2>/dev/null || true
 pw groupmod operator -m "$TARGET_USER" 2>/dev/null || true
 pw groupmod wheel -m "$TARGET_USER" 2>/dev/null || true
+pw groupmod cups -m "$TARGET_USER" 2>/dev/null || true
 
 mkdir -p /usr/local/etc/sudoers.d
 echo "%wheel ALL=(ALL) ALL" > /usr/local/etc/sudoers.d/wheel
@@ -361,20 +381,38 @@ fi
 ln -shf /compat/linux/opt/MaXX /opt/MaXX
 
 # ==============================================================================
-# 7. SPLASH SCREENS SGI (BOOT UEFI, SDDM THEME & FOND D'ECRAN BUREAU)
+# 7. SPLASH SCREENS SGI (BOOT UEFI, SGILOGO, SDDM THEME & FOND D'ECRAN BUREAU)
 # ==============================================================================
-echo "-> [8/15] Calibration des visuels SGI (Boot UEFI, SDDM et Bureau en ${SPLASH_RES})..."
+echo "-> [8/15] Calibration des visuels SGI (Boot UEFI, sgilogo.png, SDDM et Bureau en ${SPLASH_RES})..."
 IMG_DIR="/boot/images"
-GITHUB_RAW="https://raw.githubusercontent.com/msartor99/FreeBSD-Maxxdesktop/main"
+GITHUB_RAW_15="https://raw.githubusercontent.com/msartor99/FreeBSD15-Maxxdesktop/main"
+GITHUB_RAW_LEGACY="https://raw.githubusercontent.com/msartor99/FreeBSD-Maxxdesktop/main"
 mkdir -p "$IMG_DIR"
 
-curl -s "https://api.github.com/repos/msartor99/FreeBSD-Maxxdesktop/contents" | grep '"download_url"' | cut -d'"' -f4 | grep -iE "\.jpg|\.png" | while read -r img_url; do
-    fname=$(basename "$img_url")
-    [ ! -s "$IMG_DIR/$fname" ] && fetch -q -o "$IMG_DIR/$fname" "$img_url" 2>/dev/null || true
+# Sauvegarde idempotente de freebsd-logo-rev.png d'origine (effectuee une seule fois)
+if [ -f "$IMG_DIR/freebsd-logo-rev.png" ] && [ ! -f "$IMG_DIR/freebsd-logo-rev.png.bak" ]; then
+    cp -p "$IMG_DIR/freebsd-logo-rev.png" "$IMG_DIR/freebsd-logo-rev.png.bak"
+fi
+
+for repo_api in \
+    "https://api.github.com/repos/msartor99/FreeBSD15-Maxxdesktop/contents" \
+    "https://api.github.com/repos/msartor99/FreeBSD-Maxxdesktop/contents"; do
+    curl -s "$repo_api" | grep '"download_url"' | cut -d'"' -f4 | grep -iE "\.jpg|\.png" | while read -r img_url; do
+        fname=$(basename "$img_url")
+        [ ! -s "$IMG_DIR/$fname" ] && fetch -q -o "$IMG_DIR/$fname" "$img_url" 2>/dev/null || true
+    done
 done
 
+# Telechargement explicite de sgilogo.png depuis GitHub
+if [ ! -s "$IMG_DIR/sgilogo.png" ]; then
+    fetch -q -o "$IMG_DIR/sgilogo.png" "${GITHUB_RAW_15}/sgilogo.png" 2>/dev/null || \
+    fetch -q -o "$IMG_DIR/sgilogo.png" "${GITHUB_RAW_LEGACY}/sgilogo.png" 2>/dev/null || \
+    wget -q -O "$IMG_DIR/sgilogo.png" "${GITHUB_RAW_15}/sgilogo.png" 2>/dev/null || true
+fi
+
 if [ ! -s "$IMG_DIR/SGI_splash.jpg" ]; then
-    fetch -q -o "$IMG_DIR/SGI_splash.jpg" "${GITHUB_RAW}/SGI_splash.jpg" 2>/dev/null || \
+    fetch -q -o "$IMG_DIR/SGI_splash.jpg" "${GITHUB_RAW_15}/SGI_splash.jpg" 2>/dev/null || \
+    fetch -q -o "$IMG_DIR/SGI_splash.jpg" "${GITHUB_RAW_LEGACY}/SGI_splash.jpg" 2>/dev/null || \
     fetch -q -o "$IMG_DIR/SGI_splash.jpg" "https://raw.githubusercontent.com/msartor99/FreeBSD15-Maxxdesktop/6dbb056de534d22de825e1876c3e66ae406d723f/SGI_splash.jpg" 2>/dev/null || true
 fi
 
@@ -382,8 +420,8 @@ if [ ! -s "$IMG_DIR/sgi_desktop_orig.jpg" ]; then
     if [ -s "$IMG_DIR/sgi_desktop.jpg" ]; then
         cp -f "$IMG_DIR/sgi_desktop.jpg" "$IMG_DIR/sgi_desktop_orig.jpg"
     else
-        fetch -q -o "$IMG_DIR/sgi_desktop_orig.jpg" "${GITHUB_RAW}/sgi_desktop.jpg" 2>/dev/null || \
-        fetch -q -o "$IMG_DIR/sgi_desktop_orig.jpg" "https://raw.githubusercontent.com/msartor99/FreeBSD15-Maxxdesktop/main/sgi_desktop.jpg" 2>/dev/null || true
+        fetch -q -o "$IMG_DIR/sgi_desktop_orig.jpg" "${GITHUB_RAW_15}/sgi_desktop.jpg" 2>/dev/null || \
+        fetch -q -o "$IMG_DIR/sgi_desktop_orig.jpg" "${GITHUB_RAW_LEGACY}/sgi_desktop.jpg" 2>/dev/null || true
     fi
 fi
 
@@ -401,7 +439,6 @@ if [ -n "$IM_CMD" ]; then
             -strip -depth 8 -alpha set -define png:color-type=6 \
             "png32:$IMG_DIR/sgi_splash.png"
         cp -f "$IMG_DIR/sgi_splash.png" "$IMG_DIR/SGI_splash.png"
-        cp -f "$IMG_DIR/sgi_splash.png" "$IMG_DIR/freebsd-logo-rev.png" 2>/dev/null || true
     fi
 
     if [ -s "$IMG_DIR/sgi_desktop_orig.jpg" ]; then
@@ -413,6 +450,15 @@ if [ -n "$IM_CMD" ]; then
             -resize "${SPLASH_RES}^" -gravity center -extent "${SPLASH_RES}" \
             "$IMG_DIR/sgi_desktop.jpg"
     fi
+fi
+
+# Remplacement de freebsd-logo-rev.png par sgilogo.png (avec fallback sur sgi_splash.png)
+if [ -s "$IMG_DIR/sgilogo.png" ]; then
+    cp -f "$IMG_DIR/sgilogo.png" "$IMG_DIR/freebsd-logo-rev.png"
+    chmod 644 "$IMG_DIR/freebsd-logo-rev.png"
+elif [ -s "$IMG_DIR/sgi_splash.png" ]; then
+    cp -f "$IMG_DIR/sgi_splash.png" "$IMG_DIR/freebsd-logo-rev.png"
+    chmod 644 "$IMG_DIR/freebsd-logo-rev.png"
 fi
 
 # Configuration SDDM Theme SGI_IRIX
@@ -666,7 +712,7 @@ EOF
 # ==============================================================================
 # 11. WRAPPERS APPLICATIONS NATIVES FREEBSD & OUTILS SGI
 # ==============================================================================
-echo "-> [12/15] Generation des wrappers d'applications FreeBSD et outils SGI..."
+echo "-> [12/15] Generation inconditionnelle des wrappers FreeBSD et outils SGI..."
 
 for su_gui in qt-sudo gksu gksudo kdesu pkexec; do
     if [ -x "/usr/local/bin/$su_gui" ] && [ ! -f "/usr/local/bin/${su_gui}.orig" ]; then
@@ -741,10 +787,10 @@ create_wrapper "grecord"          "/usr/local/bin/pavucontrol"
 create_wrapper "Restart"          "/usr/local/bin/sudo /sbin/reboot"
 create_wrapper "Shutdown"         "/usr/local/bin/sudo /sbin/poweroff"
 
-for bin_app in xclock xfontsel dia thunderbird gimp inkscape; do
-    if [ -x "/usr/local/bin/$bin_app" ]; then
-        rm -f "/compat/linux/usr/bin/$bin_app" "/compat/linux/opt/MaXX/bin64/$bin_app"
-        cat > "/compat/linux/opt/MaXX/bin64/$bin_app" << EOF
+# Creation inconditionnelle des wrappers pour les binaires appeles par system.chestrc
+for bin_app in xclock xfontsel dia thunderbird firefox vlc gimp inkscape; do
+    rm -f "/compat/linux/usr/bin/$bin_app" "/compat/linux/opt/MaXX/bin64/$bin_app"
+    cat > "/compat/linux/opt/MaXX/bin64/$bin_app" << EOF
 #!/bin/sh
 unset LD_LIBRARY_PATH
 unset LD_PRELOAD
@@ -755,9 +801,8 @@ unset GDK_PIXBUF_MODULEDIR
 export PATH="/usr/local/bin:/usr/bin:/bin"
 exec /usr/local/bin/$bin_app "\$@" >/dev/null 2>&1 &
 EOF
-        chmod +x "/compat/linux/opt/MaXX/bin64/$bin_app"
-        ln -sf "/compat/linux/opt/MaXX/bin64/$bin_app" "/compat/linux/usr/bin/$bin_app"
-    fi
+    chmod +x "/compat/linux/opt/MaXX/bin64/$bin_app"
+    ln -sf "/compat/linux/opt/MaXX/bin64/$bin_app" "/compat/linux/usr/bin/$bin_app"
 done
 
 LO_BIN="/usr/local/bin/libreoffice"
@@ -806,9 +851,11 @@ case "$APP" in
     gnome-control-center)
         if [ "$1" = "printers" ]; then
             if [ -x /usr/local/bin/system-config-printer ]; then
-                exec /usr/local/bin/sudo -E /usr/local/bin/system-config-printer >/dev/null 2>&1 &
-            else
+                exec /usr/local/bin/system-config-printer >/dev/null 2>&1 &
+            elif [ -x /usr/local/bin/firefox ]; then
                 exec /usr/local/bin/firefox "http://localhost:631" >/dev/null 2>&1 &
+            else
+                exec /usr/local/bin/xdg-open "http://localhost:631" >/dev/null 2>&1 &
             fi
         else
             exec /usr/local/bin/nvidia-settings >/dev/null 2>&1 &
