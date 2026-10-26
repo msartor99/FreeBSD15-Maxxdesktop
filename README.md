@@ -1,4 +1,4 @@
-# MaXX Interactive Desktop (SGI IRIX Indigo Magic) on FreeBSD 15.1-RELEASE
+# MaXX Interactive Desktop (SGI IRIX Indigo Magic) on FreeBSD 15.1-RELEASE and 14.5
 
 This repository provides a turnkey, automated, and **100% idempotent** solution (written in pure POSIX `/bin/sh`) to transform a fresh installation of **FreeBSD 15.1-RELEASE** into a complete graphical workstation running **MaXX Interactive Desktop v2.2.0 (Octane)** — the faithful recreation of the legendary **Silicon Graphics (SGI) IRIX Indigo Magic** environment (`5Dwm`, `toolchest`, `tellsystem`, `gr_osview`, `rox-filer`).
 
