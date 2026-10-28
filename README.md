@@ -63,7 +63,7 @@ Log in as `root` on your freshly installed FreeBSD system, clone the repository,
 
 ```sh
 pkg install -y git curl wget
-git clone [https://github.com/msartor99/FreeBSD15-Maxxdesktop.git](https://github.com/msartor99/FreeBSD15-Maxxdesktop.git)
+git clone https://github.com/msartor99/FreeBSD15-Maxxdesktop.git
 cd FreeBSD15-Maxxdesktop
 chmod +x install-freebsd-maxx.sh
 ./install-freebsd-maxx.sh
